@@ -1,0 +1,44 @@
+# Agent runtime and machine-local caches
+.hermes/
+.claude/
+
+# Spec Kit machine-local state
+.specify/feature.json
+.specify/extensions/*/local-config.yml
+
+# Binaries and build outputs
+bin/
+dist/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# External core engines & asset databases
+xray
+xray.exe
+sing-box
+sing-box.exe
+*.dat
+
+# Testing artifacts, logs and runtime reports
+*.log
+temp/
+tmp/
+.cache/
+coverage.out
+
+# IDE and Editor configurations
+.idea/
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+*.swp
+*.swo
+
+# Operating System files
+Thumbs.db
+Desktop.ini
+.DS_Store
