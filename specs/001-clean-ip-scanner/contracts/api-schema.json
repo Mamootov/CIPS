@@ -1,0 +1,74 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "CIPS Embedded Web API Specification",
+  "endpoints": {
+    "POST /api/ingest": {
+      "summary": "Ingest proxy configuration files, raw text, or subscription URLs",
+      "request": {
+        "contentType": "multipart/form-data or application/json",
+        "properties": {
+          "text": { "type": "string", "description": "Raw pasted text or multiple lines" },
+          "subscription_url": { "type": "string", "description": "HTTP/HTTPS subscription link" }
+        }
+      },
+      "response": {
+        "type": "object",
+        "properties": {
+          "total_parsed": { "type": "integer" },
+          "unique_candidates": { "type": "integer" },
+          "configs": { "type": "array" }
+        }
+      }
+    },
+    "POST /api/scan/start": {
+      "summary": "Initiate parallel scan execution",
+      "request": {
+        "contentType": "application/json",
+        "properties": {
+          "concurrency": { "type": "integer", "default": 20 },
+          "stage1_timeout_ms": { "type": "integer", "default": 3000 },
+          "stage2_timeout_ms": { "type": "integer", "default": 8000 },
+          "active_probes": { "type": "array", "items": { "type": "string" } }
+        }
+      },
+      "response": {
+        "status": { "type": "string", "example": "started" },
+        "session_id": { "type": "string" }
+      }
+    },
+    "POST /api/scan/cancel": {
+      "summary": "Halt active scan immediately and release ports",
+      "response": { "status": "cancelled" }
+    },
+    "GET /api/stream": {
+      "summary": "Server-Sent Events (SSE) live pipeline feed",
+      "contentType": "text/event-stream",
+      "events": {
+        "stats": {
+          "total": "integer",
+          "alive": "integer",
+          "dead": "integer",
+          "clean": "integer"
+        },
+        "item_update": {
+          "proxy_id": "string",
+          "state": "QUEUED | STAGE1_HANDSHAKE | STAGE1_DEAD | STAGE2_PROBING | COMPLETE",
+          "stage1_latency": "integer",
+          "probe_results": "object",
+          "ip_info": "object",
+          "is_clean": "boolean"
+        }
+      }
+    },
+    "GET /api/export": {
+      "summary": "Retrieve cleaned subscription or full JSON session telemetry",
+      "parameters": {
+        "format": { "type": "string", "enum": ["sub", "json"] },
+        "required_probe": { "type": "string", "description": "Filter by passed probe, e.g. 'gemini'" }
+      },
+      "response": {
+        "contentType": "text/plain (for sub) or application/json"
+      }
+    }
+  }
+}
