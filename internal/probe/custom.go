@@ -81,6 +81,24 @@ func (p *CustomProbe) Evaluate(ctx context.Context, proxyEndpoint string) domain
 	resp, err := client.Do(req)
 	latency := time.Since(start).Milliseconds()
 
+	var bodyBytes []byte
+	if resp != nil && resp.Body != nil {
+		bodyBytes, _ = io.ReadAll(io.LimitReader(resp.Body, 64*1024))
+		_ = resp.Body.Close()
+	}
+
+	diag := InspectResponse(resp, bodyBytes, err, p.def.TargetURL)
+	if diag.InterceptionType == domain.InterceptLocalEngineError || diag.InterceptionType == domain.InterceptUpstreamTimeout {
+		return domain.ProbeResult{
+			ProbeID:      p.ID(),
+			ProbeName:    p.Name(),
+			Status:       domain.StatusFail,
+			LatencyMs:    latency,
+			ErrorMessage: diag.Summary,
+			Diagnostic:   &diag,
+		}
+	}
+
 	if err != nil {
 		return domain.ProbeResult{
 			ProbeID:      p.ID(),
@@ -88,9 +106,9 @@ func (p *CustomProbe) Evaluate(ctx context.Context, proxyEndpoint string) domain
 			Status:       domain.StatusFail,
 			LatencyMs:    latency,
 			ErrorMessage: err.Error(),
+			Diagnostic:   &diag,
 		}
 	}
-	defer resp.Body.Close()
 
 	expectedStatus := p.def.ExpectedStatus
 	if expectedStatus <= 0 {

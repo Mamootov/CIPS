@@ -142,6 +142,43 @@
     <!-- Notification Toast -->
     <div id="toast" class="toast"></div>
 
+    <!-- Diagnostic Inspection Modal -->
+    <div id="diag-modal" class="modal-overlay">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>🔍 Diagnostic Inspection Details</h3>
+                <button id="modal-close" class="modal-close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="diag-grid">
+                    <span class="diag-label">Probe Target:</span>
+                    <span id="modal-probe-name" class="diag-value">-</span>
+
+                    <span class="diag-label">Error Layer:</span>
+                    <span id="modal-error-layer" class="diag-value">-</span>
+
+                    <span class="diag-label">Interception Type:</span>
+                    <span id="modal-interception" class="diag-value">-</span>
+
+                    <span class="diag-label">HTTP Status:</span>
+                    <span id="modal-http-status" class="diag-value">-</span>
+
+                    <span class="diag-label">Server Header:</span>
+                    <span id="modal-server" class="diag-value">-</span>
+
+                    <span class="diag-label">Cloudflare Ray-ID:</span>
+                    <span id="modal-ray-id" class="diag-value">-</span>
+
+                    <span class="diag-label">Landing URL:</span>
+                    <span id="modal-final-url" class="diag-value">-</span>
+
+                    <span class="diag-label">Summary / Notice:</span>
+                    <span id="modal-summary" class="diag-value">-</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script src="app.js"></script>
 </body>
 </html>

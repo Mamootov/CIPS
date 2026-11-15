@@ -5,6 +5,7 @@ import (
 	"strings"
 	"time"
 
+	http "github.com/bogdanfinn/fhttp"
 	tls_client "github.com/bogdanfinn/tls-client"
 	"github.com/bogdanfinn/tls-client/profiles"
 )
@@ -15,10 +16,22 @@ func BuildTLSClient(proxyEndpoint string, timeout time.Duration) (tls_client.Htt
 		timeout = 10 * time.Second
 	}
 
+	redirectCheck := func(req *http.Request, via []*http.Request) error {
+		if len(via) >= 5 {
+			return fmt.Errorf("stopped after 5 redirects")
+		}
+		target := req.URL.String()
+		if strings.Contains(target, "google.com/sorry") || strings.Contains(target, "/sorry/index") {
+			return fmt.Errorf("GOOGLE_UNUSUAL_TRAFFIC_INTERCEPT:%s", target)
+		}
+		return nil
+	}
+
 	options := []tls_client.HttpClientOption{
 		tls_client.WithClientProfile(profiles.Chrome_124),
 		tls_client.WithTimeoutSeconds(int(timeout.Seconds())),
 		tls_client.WithInsecureSkipVerify(),
+		tls_client.WithCustomRedirectFunc(redirectCheck),
 	}
 
 	if proxyEndpoint != "" {

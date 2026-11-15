@@ -89,14 +89,48 @@ type ProbeDefinition struct {
 	Enabled        bool              `json:"enabled"`
 }
 
+type ErrorLayer string
+
+const (
+	LayerNone          ErrorLayer = "NONE"
+	LayerLocalEngine   ErrorLayer = "LOCAL_ENGINE"   // Host OS socket, process crash, port bind refused
+	LayerUpstreamProxy ErrorLayer = "UPSTREAM_PROXY" // Remote proxy node unreachable, TLS reset, dropped SYN
+	LayerTargetService ErrorLayer = "TARGET_SERVICE" // Target platform interception (Cloudflare, Google, Geoblock)
+)
+
+type InterceptionType string
+
+const (
+	InterceptNone                 InterceptionType = "NONE"
+	InterceptCloudflareChallenge  InterceptionType = "CLOUDFLARE_CHALLENGE"  // Turnstile, Under-Attack mode, 403/503
+	InterceptGoogleUnusualTraffic InterceptionType = "GOOGLE_UNUSUAL_TRAFFIC" // Google /sorry/index captcha redirect
+	InterceptGeoRestricted        InterceptionType = "GEO_RESTRICTED"         // Region not supported banner
+	InterceptLocalEngineError     InterceptionType = "LOCAL_ENGINE_ERROR"     // connectex / socket refused
+	InterceptUpstreamTimeout      InterceptionType = "UPSTREAM_TIMEOUT"       // Remote node timed out
+	InterceptUnknown              InterceptionType = "UNKNOWN"
+)
+
+// DiagnosticInfo enriches ProbeResult with structured inspection telemetry.
+type DiagnosticInfo struct {
+	Layer            ErrorLayer       `json:"layer"`
+	InterceptionType InterceptionType `json:"interception_type"`
+	FinalURL         string           `json:"final_url,omitempty"`
+	HTTPStatus       int              `json:"http_status,omitempty"`
+	ServerHeader     string           `json:"server_header,omitempty"`
+	RayID            string           `json:"ray_id,omitempty"`
+	PageTitle        string           `json:"page_title,omitempty"`
+	Summary          string           `json:"summary"`
+}
+
 // ProbeResult represents the outcome of a single probe evaluation.
 type ProbeResult struct {
-	ProbeID      string      `json:"probe_id"`
-	ProbeName    string      `json:"probe_name"`
-	Status       ProbeStatus `json:"status"`
-	HTTPCode     int         `json:"http_code"`
-	LatencyMs    int64       `json:"latency_ms"`
-	ErrorMessage string      `json:"error_message,omitempty"`
+	ProbeID      string          `json:"probe_id"`
+	ProbeName    string          `json:"probe_name"`
+	Status       ProbeStatus     `json:"status"`
+	HTTPCode     int             `json:"http_code"`
+	LatencyMs    int64           `json:"latency_ms"`
+	ErrorMessage string          `json:"error_message,omitempty"`
+	Diagnostic   *DiagnosticInfo `json:"diagnostic,omitempty"`
 }
 
 // IPEnrichment holds intelligence data returned from ipleak.net.

@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"strings"
 	"time"
 
 	http "github.com/bogdanfinn/fhttp"
@@ -72,57 +71,36 @@ func (p *AIStudioProbe) Evaluate(ctx context.Context, proxyEndpoint string) doma
 	resp, err := client.Do(req)
 	latency := time.Since(start).Milliseconds()
 
-	if err != nil {
+	var bodyBytes []byte
+	if resp != nil && resp.Body != nil {
+		bodyBytes, _ = io.ReadAll(io.LimitReader(resp.Body, 64*1024))
+		_ = resp.Body.Close()
+	}
+
+	diag := InspectResponse(resp, bodyBytes, err, "https://aistudio.google.com/")
+
+	if diag.InterceptionType != domain.InterceptNone {
+		httpCode := 0
+		if resp != nil {
+			httpCode = resp.StatusCode
+		}
 		return domain.ProbeResult{
 			ProbeID:      p.ID(),
 			ProbeName:    p.Name(),
 			Status:       domain.StatusFail,
+			HTTPCode:     httpCode,
 			LatencyMs:    latency,
-			ErrorMessage: err.Error(),
-		}
-	}
-	defer resp.Body.Close()
-
-	bodyBytes, _ := io.ReadAll(io.LimitReader(resp.Body, 64*1024))
-	bodyStr := strings.ToLower(string(bodyBytes))
-
-	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusFound {
-		return domain.ProbeResult{
-			ProbeID:      p.ID(),
-			ProbeName:    p.Name(),
-			Status:       domain.StatusFail,
-			HTTPCode:     resp.StatusCode,
-			LatencyMs:    latency,
-			ErrorMessage: fmt.Sprintf("HTTP %d unexpected status", resp.StatusCode),
-		}
-	}
-
-	blockedTokens := []string{
-		"location_error",
-		"unsupported-country",
-		"not available in your country",
-		"access denied",
-		"user location not supported",
-	}
-
-	for _, token := range blockedTokens {
-		if strings.Contains(bodyStr, token) {
-			return domain.ProbeResult{
-				ProbeID:      p.ID(),
-				ProbeName:    p.Name(),
-				Status:       domain.StatusFail,
-				HTTPCode:     resp.StatusCode,
-				LatencyMs:    latency,
-				ErrorMessage: "Region blocked by Google AI Studio",
-			}
+			ErrorMessage: diag.Summary,
+			Diagnostic:   &diag,
 		}
 	}
 
 	return domain.ProbeResult{
-		ProbeID:   p.ID(),
-		ProbeName: p.Name(),
-		Status:    domain.StatusPass,
-		HTTPCode:  resp.StatusCode,
-		LatencyMs: latency,
+		ProbeID:    p.ID(),
+		ProbeName:  p.Name(),
+		Status:     domain.StatusPass,
+		HTTPCode:   resp.StatusCode,
+		LatencyMs:  latency,
+		Diagnostic: &diag,
 	}
 }

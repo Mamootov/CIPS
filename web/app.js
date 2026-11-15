@@ -278,8 +278,8 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         // Service checkpoints
-        const geminiCheck = renderCheckpoint(report.probe_results['gemini']);
-        const studioCheck = renderCheckpoint(report.probe_results['aistudio']);
+        const geminiCheck = renderCheckpoint(report.probe_results['gemini'], cfg.id, 'gemini');
+        const studioCheck = renderCheckpoint(report.probe_results['aistudio'], cfg.id, 'aistudio');
         const ipleakCheck = renderIPLeakCell(report.ip_info);
 
         // State pill
@@ -317,13 +317,30 @@ document.addEventListener('DOMContentLoaded', () => {
         `;
     }
 
-    function renderCheckpoint(res) {
+    function renderCheckpoint(res, proxyId, probeId) {
         if (!res) return '<span class="badge badge-pending">○</span>';
         if (res.status === 'PASS') {
             return `<span class="badge badge-pass" title="Latency: ${res.latency_ms}ms">✓ PASS (${res.latency_ms}ms)</span>`;
         }
         if (res.status === 'FAIL') {
-            return `<span class="badge badge-fail" title="${res.error_message || 'HTTP ' + res.http_code}">✗ FAIL</span>`;
+            let label = '✗ FAIL';
+            let title = res.error_message || ('HTTP ' + res.http_code);
+            if (res.diagnostic) {
+                if (res.diagnostic.interception_type === 'CLOUDFLARE_CHALLENGE') {
+                    label = '🛡️ Cloudflare';
+                    title = `Cloudflare Challenge (Ray-ID: ${res.diagnostic.ray_id || 'N/A'}) - Click to inspect`;
+                } else if (res.diagnostic.interception_type === 'GOOGLE_UNUSUAL_TRAFFIC') {
+                    label = '🤖 Captcha';
+                    title = 'Google Unusual Traffic Captcha (/sorry/index) - Click to inspect';
+                } else if (res.diagnostic.interception_type === 'GEO_RESTRICTED') {
+                    label = '🌍 Geoblock';
+                    title = 'Region Restricted - Click to inspect';
+                } else if (res.diagnostic.interception_type === 'LOCAL_ENGINE_ERROR') {
+                    label = '⚠️ Port Refused';
+                    title = 'Local Engine Port Refused - Click to inspect';
+                }
+            }
+            return `<span class="badge badge-fail" onclick="openDiagModal('${proxyId}', '${probeId}')" title="${escapeHtml(title)}">${label}</span>`;
         }
         if (res.status === 'RUNNING') {
             return '<span class="badge badge-running">Testing...</span>';
@@ -428,6 +445,45 @@ document.addEventListener('DOMContentLoaded', () => {
     // Download Clean Subscription
     btnDownloadSub.addEventListener('click', () => {
         window.open('/api/export?format=sub', '_blank');
+    });
+
+    // Diagnostic Inspection Modal Handlers
+    window.openDiagModal = function(proxyId, probeId) {
+        const report = state.configs.get(proxyId);
+        if (!report) return;
+        const res = report.probe_results[probeId];
+        if (!res || !res.diagnostic) {
+            showToast('No detailed diagnostic available for this probe');
+            return;
+        }
+
+        const d = res.diagnostic;
+        document.getElementById('modal-probe-name').textContent = res.probe_name || probeId;
+        document.getElementById('modal-error-layer').textContent = d.layer || 'UNKNOWN';
+        document.getElementById('modal-interception').textContent = d.interception_type || 'NONE';
+        document.getElementById('modal-http-status').textContent = d.http_status ? d.http_status : (res.http_code || 'N/A');
+        document.getElementById('modal-server').textContent = d.server_header || 'N/A';
+        document.getElementById('modal-ray-id').textContent = d.ray_id || 'N/A';
+        document.getElementById('modal-final-url').textContent = d.final_url || 'N/A';
+        document.getElementById('modal-summary').textContent = d.summary || res.error_message || 'N/A';
+
+        document.getElementById('diag-modal').classList.add('open');
+    };
+
+    document.getElementById('modal-close').addEventListener('click', () => {
+        document.getElementById('diag-modal').classList.remove('open');
+    });
+
+    document.getElementById('diag-modal').addEventListener('click', (e) => {
+        if (e.target.id === 'diag-modal') {
+            document.getElementById('diag-modal').classList.remove('open');
+        }
+    });
+
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+            document.getElementById('diag-modal').classList.remove('open');
+        }
     });
 
     function escapeHtml(str) {

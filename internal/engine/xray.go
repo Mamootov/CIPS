@@ -140,9 +140,8 @@ func (xe *XrayEngine) StartPool(ctx context.Context, configs []domain.ProxyConfi
 	_ = tmpFile.Close()
 
 	cmd := exec.CommandContext(ctx, xe.xrayPath, "run", "-c", configPath)
-	// Silence or redirect standard output
 	cmd.Stdout = nil
-	cmd.Stderr = nil
+	cmd.Stderr = GlobalEngineLog
 
 	if err := cmd.Start(); err != nil {
 		_ = os.Remove(configPath)
@@ -154,8 +153,28 @@ func (xe *XrayEngine) StartPool(ctx context.Context, configs []domain.ProxyConfi
 	xe.activeCmds[cmdPid] = cmd
 	xe.tempFiles = append(xe.tempFiles, configPath)
 
-	// Give Xray 100ms to bind ports
-	time.Sleep(100 * time.Millisecond)
+	// Active socket readiness polling instead of blind sleep
+	if err := WaitForPortsReady(ports, 1500*time.Millisecond); err != nil {
+		if cmd.Process != nil {
+			_ = cmd.Process.Kill()
+		}
+		_ = os.Remove(configPath)
+		xe.portManager.ReleaseBatch(ports)
+		return nil, fmt.Errorf("xray socket initialization failed: %w", err)
+	}
+
+	var killOnce sync.Once
+	killProcess := func() {
+		killOnce.Do(func() {
+			if cmd.Process != nil {
+				_ = cmd.Process.Kill()
+			}
+			_ = os.Remove(configPath)
+			xe.mu.Lock()
+			delete(xe.activeCmds, cmdPid)
+			xe.mu.Unlock()
+		})
+	}
 
 	// Wrap instances with cleanup
 	finalInstances := make([]domain.EngineInstance, len(instances))
@@ -166,6 +185,7 @@ func (xe *XrayEngine) StartPool(ctx context.Context, configs []domain.ProxyConfi
 			config:   inst.config,
 			onClose: func() error {
 				xe.portManager.ReleasePort(port)
+				killProcess()
 				return nil
 			},
 		}
@@ -174,11 +194,8 @@ func (xe *XrayEngine) StartPool(ctx context.Context, configs []domain.ProxyConfi
 	// Goroutine to cleanup process when context finishes or command exits
 	go func() {
 		_ = cmd.Wait()
-		xe.mu.Lock()
-		delete(xe.activeCmds, cmdPid)
-		_ = os.Remove(configPath)
+		killProcess()
 		xe.portManager.ReleaseBatch(ports)
-		xe.mu.Unlock()
 	}()
 
 	return finalInstances, nil
@@ -260,6 +277,28 @@ func (xe *XrayEngine) buildPoolConfig(configs []domain.ProxyConfig, ports []int)
 	}
 
 	return config, instances
+}
+
+// WaitForPortsReady polls a list of ports until all are accepting TCP connections or timeout occurs.
+func WaitForPortsReady(ports []int, timeout time.Duration) error {
+	deadline := time.Now().Add(timeout)
+	for _, p := range ports {
+		addr := fmt.Sprintf("127.0.0.1:%d", p)
+		ready := false
+		for time.Now().Before(deadline) {
+			conn, err := net.DialTimeout("tcp", addr, 25*time.Millisecond)
+			if err == nil {
+				_ = conn.Close()
+				ready = true
+				break
+			}
+			time.Sleep(20 * time.Millisecond)
+		}
+		if !ready {
+			return fmt.Errorf("local port %d failed to accept connections within %v", p, timeout)
+		}
+	}
+	return nil
 }
 
 func (xe *XrayEngine) convertConfigToOutbound(cfg domain.ProxyConfig, tag string) map[string]interface{} {
