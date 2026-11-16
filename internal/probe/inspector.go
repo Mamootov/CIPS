@@ -20,6 +20,27 @@ func InspectResponse(resp *http.Response, body []byte, reqErr error, targetURL s
 	// 1. Inspect Transport / Socket Errors
 	if reqErr != nil {
 		errStr := reqErr.Error()
+
+		if strings.Contains(errStr, "GOOGLE_REGION_BLOCKED_INTERCEPT:") {
+			urlPart := strings.TrimPrefix(errStr, "GOOGLE_REGION_BLOCKED_INTERCEPT:")
+			return domain.DiagnosticInfo{
+				Layer:            domain.LayerTargetService,
+				InterceptionType: domain.InterceptGeoRestricted,
+				FinalURL:         urlPart,
+				Summary:          "Redirected to available-regions documentation (Region not supported)",
+			}
+		}
+
+		if strings.Contains(errStr, "GOOGLE_UNUSUAL_TRAFFIC_INTERCEPT:") {
+			urlPart := strings.TrimPrefix(errStr, "GOOGLE_UNUSUAL_TRAFFIC_INTERCEPT:")
+			return domain.DiagnosticInfo{
+				Layer:            domain.LayerTargetService,
+				InterceptionType: domain.InterceptGoogleUnusualTraffic,
+				FinalURL:         urlPart,
+				Summary:          "Google unusual traffic challenge (/sorry/index captcha)",
+			}
+		}
+
 		if strings.Contains(errStr, "connectex") || strings.Contains(errStr, "actively refused it") || strings.Contains(errStr, "connection refused") {
 			return domain.DiagnosticInfo{
 				Layer:            domain.LayerLocalEngine,
@@ -59,7 +80,19 @@ func InspectResponse(resp *http.Response, body []byte, reqErr error, targetURL s
 	location := resp.Header.Get("Location")
 	pageTitle := ExtractPageTitle(body)
 
-	// 2. Check Google Unusual Traffic Redirect (/sorry/index)
+	// 2. Check Google Unusual Traffic Redirect (/sorry/index) or Region Block (/docs/available-regions)
+	if strings.Contains(location, "available-regions") || strings.Contains(location, "/docs/available-regions") {
+		return domain.DiagnosticInfo{
+			Layer:            domain.LayerTargetService,
+			InterceptionType: domain.InterceptGeoRestricted,
+			FinalURL:         location,
+			HTTPStatus:       resp.StatusCode,
+			ServerHeader:     serverHeader,
+			PageTitle:        pageTitle,
+			Summary:          "Redirected to available-regions documentation (Region not supported)",
+		}
+	}
+
 	if strings.Contains(location, "google.com/sorry") || strings.Contains(location, "/sorry/index") {
 		return domain.DiagnosticInfo{
 			Layer:            domain.LayerTargetService,
@@ -100,10 +133,20 @@ func InspectResponse(resp *http.Response, body []byte, reqErr error, targetURL s
 
 	geoblockTokens := []string{
 		"isn't supported in your country",
+		"isn't currently supported in your country",
 		"location_error",
 		"unsupported country",
 		"user location not supported",
 		"not available in your country",
+		"not available in your region",
+		"your region may not be supported",
+		"region may not be supported",
+		"available-regions",
+		"در کشورتان دردسترس نیست",
+		"در کشورتان در دسترس نیست",
+		"در کشور شما در دسترس نیست",
+		"جمینای در کشورتان دردسترس نیست",
+		"پشتیبانی نمی‌شود",
 	}
 
 	for _, token := range geoblockTokens {

@@ -84,6 +84,21 @@ func TestInspectGeoblockRestricted(t *testing.T) {
 	}
 }
 
+func TestInspectAIStudioAvailableRegionsRedirect(t *testing.T) {
+	resp := &http.Response{
+		StatusCode: 302,
+		Header: http.Header{
+			"Location": []string{"https://ai.google.dev/gemini-api/docs/available-regions"},
+		},
+	}
+
+	diag := InspectResponse(resp, nil, nil, "https://aistudio.google.com/")
+
+	if diag.InterceptionType != domain.InterceptGeoRestricted {
+		t.Errorf("expected GEO_RESTRICTED for available-regions, got %s", diag.InterceptionType)
+	}
+}
+
 func TestInspectLocalEngineRefused(t *testing.T) {
 	reqErr := errors.New("dial tcp 127.0.0.1:20005: connectex: No connection could be made because the target machine actively refused it.")
 

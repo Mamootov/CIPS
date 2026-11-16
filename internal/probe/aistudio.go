@@ -48,6 +48,28 @@ func (p *AIStudioProbe) Evaluate(ctx context.Context, proxyEndpoint string) doma
 		}
 	}
 
+	// 1. Check Google's first-party localized region for this proxy IP
+	if country, err := DetectGoogleRegion(ctx, client, proxyEndpoint); err == nil {
+		if bannedName, isBanned := GoogleBannedCountries[country]; isBanned {
+			diag := domain.DiagnosticInfo{
+				Layer:            domain.LayerTargetService,
+				InterceptionType: domain.InterceptGeoRestricted,
+				FinalURL:         "https://aistudio.google.com/",
+				HTTPStatus:       403,
+				Summary:          fmt.Sprintf("Google localized IP to %s (%s) — Region blocked by Google AI Studio policy", country, bannedName),
+			}
+			return domain.ProbeResult{
+				ProbeID:      p.ID(),
+				ProbeName:    p.Name(),
+				Status:       domain.StatusFail,
+				HTTPCode:     403,
+				LatencyMs:    time.Since(start).Milliseconds(),
+				ErrorMessage: diag.Summary,
+				Diagnostic:   &diag,
+			}
+		}
+	}
+
 	req, err := http.NewRequestWithContext(ctx, "GET", "https://aistudio.google.com/", nil)
 	if err != nil {
 		return domain.ProbeResult{

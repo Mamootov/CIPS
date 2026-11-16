@@ -48,7 +48,29 @@ func (p *GeminiProbe) Evaluate(ctx context.Context, proxyEndpoint string) domain
 		}
 	}
 
-	req, err := http.NewRequestWithContext(ctx, "GET", "https://gemini.google.com/app", nil)
+	// 1. Check Google's first-party localized region for this proxy IP
+	if country, err := DetectGoogleRegion(ctx, client, proxyEndpoint); err == nil {
+		if bannedName, isBanned := GoogleBannedCountries[country]; isBanned {
+			diag := domain.DiagnosticInfo{
+				Layer:            domain.LayerTargetService,
+				InterceptionType: domain.InterceptGeoRestricted,
+				FinalURL:         "https://gemini.google.com/",
+				HTTPStatus:       403,
+				Summary:          fmt.Sprintf("Google localized IP to %s (%s) — Region blocked by Gemini policy", country, bannedName),
+			}
+			return domain.ProbeResult{
+				ProbeID:      p.ID(),
+				ProbeName:    p.Name(),
+				Status:       domain.StatusFail,
+				HTTPCode:     403,
+				LatencyMs:    time.Since(start).Milliseconds(),
+				ErrorMessage: diag.Summary,
+				Diagnostic:   &diag,
+			}
+		}
+	}
+
+	req, err := http.NewRequestWithContext(ctx, "GET", "https://gemini.google.com/", nil)
 	if err != nil {
 		return domain.ProbeResult{
 			ProbeID:      p.ID(),
@@ -78,7 +100,7 @@ func (p *GeminiProbe) Evaluate(ctx context.Context, proxyEndpoint string) domain
 		_ = resp.Body.Close()
 	}
 
-	diag := InspectResponse(resp, bodyBytes, err, "https://gemini.google.com/app")
+	diag := InspectResponse(resp, bodyBytes, err, "https://gemini.google.com/")
 
 	if diag.InterceptionType != domain.InterceptNone {
 		httpCode := 0

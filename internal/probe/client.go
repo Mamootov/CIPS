@@ -24,6 +24,9 @@ func BuildTLSClient(proxyEndpoint string, timeout time.Duration) (tls_client.Htt
 		if strings.Contains(target, "google.com/sorry") || strings.Contains(target, "/sorry/index") {
 			return fmt.Errorf("GOOGLE_UNUSUAL_TRAFFIC_INTERCEPT:%s", target)
 		}
+		if strings.Contains(target, "available-regions") || strings.Contains(target, "/docs/available-regions") {
+			return fmt.Errorf("GOOGLE_REGION_BLOCKED_INTERCEPT:%s", target)
+		}
 		return nil
 	}
 
