@@ -247,6 +247,9 @@ body {
 .btn-outline { background: transparent; border: 1px solid var(--border); color: var(--text-secondary); }
 .btn-outline:hover:not(:disabled) { border-color: var(--text-primary); color: #fff; }
 
+.btn-outline-danger { background: transparent; border: 1px solid rgba(239, 68, 68, 0.4); color: var(--danger); }
+.btn-outline-danger:hover:not(:disabled) { background: var(--danger); color: #fff; border-color: var(--danger); }
+
 .btn:disabled {
     opacity: 0.5;
     cursor: not-allowed;

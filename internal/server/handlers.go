@@ -34,6 +34,16 @@ func NewServerContext(orch *pipeline.Orchestrator, bc *SSEBroadcaster) *ServerCo
 	}
 }
 
+// UpdateReport safely updates a single evaluation report in real-time.
+func (sc *ServerContext) UpdateReport(report *domain.ProxyEvaluationReport) {
+	if report == nil {
+		return
+	}
+	sc.mu.Lock()
+	defer sc.mu.Unlock()
+	sc.reports[report.Config.ID] = report
+}
+
 // HandleIngest processes file uploads, pasted text, or subscription URLs.
 func (sc *ServerContext) HandleIngest(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
@@ -191,6 +201,57 @@ func (sc *ServerContext) HandleExport(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=clean_sub_%d.txt", time.Now().Unix()))
 	_, _ = w.Write([]byte(subContent))
+}
+
+// HandleSessionState returns all currently loaded reports and scan status for persistence across page refreshes.
+func (sc *ServerContext) HandleSessionState(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	sc.mu.RLock()
+	defer sc.mu.RUnlock()
+
+	reportsList := make([]*domain.ProxyEvaluationReport, 0, len(sc.reports))
+	for _, rep := range sc.reports {
+		reportsList = append(reportsList, rep)
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]interface{}{
+		"reports":    reportsList,
+		"total":      len(sc.candidates),
+		"is_running": sc.orchestrator.IsRunning(),
+	})
+}
+
+// HandleReset clears all loaded candidates and reports from memory.
+func (sc *ServerContext) HandleReset(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	if sc.orchestrator.IsRunning() {
+		sc.orchestrator.Cancel()
+	}
+
+	sc.mu.Lock()
+	sc.candidates = nil
+	sc.reports = make(map[string]*domain.ProxyEvaluationReport)
+	sc.mu.Unlock()
+
+	sc.broadcaster.BroadcastStats(domain.ScanSessionStats{
+		TotalIngested: 0,
+		Deduplicated:  0,
+		IsRunning:     false,
+	})
+
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]interface{}{
+		"status": "cleared",
+	})
 }
 
 func stringsHasPrefix(s, prefix string) bool {

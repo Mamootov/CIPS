@@ -153,8 +153,8 @@ func (xe *XrayEngine) StartPool(ctx context.Context, configs []domain.ProxyConfi
 	xe.activeCmds[cmdPid] = cmd
 	xe.tempFiles = append(xe.tempFiles, configPath)
 
-	// Active socket readiness polling instead of blind sleep
-	if err := WaitForPortsReady(ports, 1500*time.Millisecond); err != nil {
+	// Active socket readiness polling instead of blind sleep (generous 5s budget for large multi-inbound pools on Windows)
+	if err := WaitForPortsReady(ports, 5000*time.Millisecond); err != nil {
 		if cmd.Process != nil {
 			_ = cmd.Process.Kill()
 		}

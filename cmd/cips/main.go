@@ -120,6 +120,7 @@ func runApplication(cmd *cobra.Command, args []string) {
 			srv.Broadcaster().BroadcastStats(stats)
 		},
 		OnItemUpdate: func(report *domain.ProxyEvaluationReport) {
+			srv.Context().UpdateReport(report)
 			srv.Broadcaster().BroadcastItemUpdate(report)
 		},
 	}

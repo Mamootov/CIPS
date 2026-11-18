@@ -20,6 +20,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const btnCancel = document.getElementById('btn-cancel');
     const btnCopySub = document.getElementById('btn-copy-sub');
     const btnDownloadSub = document.getElementById('btn-download-sub');
+    const btnClearAll = document.getElementById('btn-clear-all');
 
     const concurrencySlider = document.getElementById('concurrency');
     const concurrencyVal = document.getElementById('concurrency-val');
@@ -228,6 +229,28 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     setupSSE();
 
+    // Fetch initial session state on load / refresh
+    function loadInitialSession() {
+        fetch('/api/session')
+            .then(res => res.json())
+            .then(data => {
+                if (data && data.reports && data.reports.length > 0) {
+                    data.reports.forEach(report => {
+                        state.configs.set(report.config.id, report);
+                    });
+                    if (data.is_running) {
+                        state.isScanning = true;
+                        btnStart.disabled = true;
+                        btnCancel.disabled = false;
+                    }
+                    renderTable();
+                    updateCounters();
+                }
+            })
+            .catch(err => console.error('Failed to load session:', err));
+    }
+    loadInitialSession();
+
     // Table Rendering & Updating
     function renderTable() {
         const filtered = getFilteredConfigs();
@@ -278,8 +301,9 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         // Service checkpoints
-        const geminiCheck = renderCheckpoint(report.probe_results['gemini'], cfg.id, 'gemini');
-        const studioCheck = renderCheckpoint(report.probe_results['aistudio'], cfg.id, 'aistudio');
+        const isComplete = report.state === 'COMPLETE';
+        const geminiCheck = renderCheckpoint(report.probe_results['gemini'], cfg.id, 'gemini', isComplete);
+        const studioCheck = renderCheckpoint(report.probe_results['aistudio'], cfg.id, 'aistudio', isComplete);
         const ipleakCheck = renderIPLeakCell(report.ip_info);
 
         // State pill
@@ -317,8 +341,12 @@ document.addEventListener('DOMContentLoaded', () => {
         `;
     }
 
-    function renderCheckpoint(res, proxyId, probeId) {
-        if (!res) return '<span class="badge badge-pending">○</span>';
+    function renderCheckpoint(res, proxyId, probeId, isComplete) {
+        if (!res) {
+            return isComplete ? 
+                '<span class="badge badge-fail" title="Probe skipped or tunnel unavailable">✗ N/A</span>' : 
+                '<span class="badge badge-pending">○</span>';
+        }
         if (res.status === 'PASS') {
             return `<span class="badge badge-pass" title="Latency: ${res.latency_ms}ms">✓ PASS (${res.latency_ms}ms)</span>`;
         }
@@ -432,7 +460,7 @@ document.addEventListener('DOMContentLoaded', () => {
             .then(res => res.text())
             .then(text => {
                 if (!text.trim()) {
-                    showToast('No clean verified configurations available to export');
+                    showToast('No clean verified configurations available yet. Probing in progress...');
                     return;
                 }
                 navigator.clipboard.writeText(text).then(() => {
@@ -445,6 +473,29 @@ document.addEventListener('DOMContentLoaded', () => {
     // Download Clean Subscription
     btnDownloadSub.addEventListener('click', () => {
         window.open('/api/export?format=sub', '_blank');
+    });
+
+    // Clear All Configurations
+    btnClearAll.addEventListener('click', () => {
+        if (state.configs.size === 0) {
+            showToast('No configurations to clear');
+            return;
+        }
+        if (!confirm('Are you sure you want to clear all loaded configurations?')) {
+            return;
+        }
+        fetch('/api/reset', { method: 'POST' })
+            .then(res => res.json())
+            .then(() => {
+                state.configs.clear();
+                state.isScanning = false;
+                btnStart.disabled = false;
+                btnCancel.disabled = true;
+                renderTable();
+                updateCounters();
+                showToast('All configurations cleared');
+            })
+            .catch(err => showToast(`Clear failed: ${err.message}`));
     });
 
     // Diagnostic Inspection Modal Handlers

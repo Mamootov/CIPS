@@ -6,6 +6,7 @@ import (
 	"io"
 	"regexp"
 	"sync"
+	"time"
 
 	http "github.com/bogdanfinn/fhttp"
 	tls_client "github.com/bogdanfinn/tls-client"
@@ -34,14 +35,22 @@ var (
 
 // DetectGoogleRegion queries Google directly through the proxy tunnel to extract the 2-letter country code Google assigned to this IP.
 func DetectGoogleRegion(ctx context.Context, client tls_client.HttpClient, proxyEndpoint string) (string, error) {
+	cacheKey := proxyEndpoint
+	if val, ok := ctx.Value("config_id").(string); ok && val != "" {
+		cacheKey = val
+	}
+
 	geoCacheMu.RLock()
-	if cached, ok := geoCache[proxyEndpoint]; ok {
+	if cached, ok := geoCache[cacheKey]; ok {
 		geoCacheMu.RUnlock()
 		return cached, nil
 	}
 	geoCacheMu.RUnlock()
 
-	req, err := http.NewRequestWithContext(ctx, "GET", "https://www.google.com/preferences?hl=en", nil)
+	geoCtx, cancel := context.WithTimeout(ctx, 4*time.Second)
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(geoCtx, "GET", "https://www.google.com/preferences?hl=en", nil)
 	if err != nil {
 		return "", err
 	}
@@ -63,7 +72,7 @@ func DetectGoogleRegion(ctx context.Context, client tls_client.HttpClient, proxy
 	if m := langRegex.FindStringSubmatch(bodyStr); len(m) > 1 {
 		country := m[1]
 		geoCacheMu.Lock()
-		geoCache[proxyEndpoint] = country
+		geoCache[cacheKey] = country
 		geoCacheMu.Unlock()
 		return country, nil
 	}
@@ -71,7 +80,7 @@ func DetectGoogleRegion(ctx context.Context, client tls_client.HttpClient, proxy
 	if m := hlRegex.FindStringSubmatch(bodyStr); len(m) > 1 {
 		country := m[1]
 		geoCacheMu.Lock()
-		geoCache[proxyEndpoint] = country
+		geoCache[cacheKey] = country
 		geoCacheMu.Unlock()
 		return country, nil
 	}

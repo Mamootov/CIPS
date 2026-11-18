@@ -31,6 +31,8 @@ func NewServer(orch *pipeline.Orchestrator, webFS fs.FS) *Server {
 	mux.HandleFunc("/api/ingest", sc.HandleIngest)
 	mux.HandleFunc("/api/scan/start", sc.HandleScanStart)
 	mux.HandleFunc("/api/scan/cancel", sc.HandleScanCancel)
+	mux.HandleFunc("/api/session", sc.HandleSessionState)
+	mux.HandleFunc("/api/reset", sc.HandleReset)
 	mux.HandleFunc("/api/export", sc.HandleExport)
 	mux.Handle("/api/stream", bc)
 
@@ -54,6 +56,11 @@ func NewServer(orch *pipeline.Orchestrator, webFS fs.FS) *Server {
 // Broadcaster returns the SSEBroadcaster instance.
 func (s *Server) Broadcaster() *SSEBroadcaster {
 	return s.broadcaster
+}
+
+// Context returns the ServerContext instance.
+func (s *Server) Context() *ServerContext {
+	return s.context
 }
 
 // ListenWithFallback attempts to bind defaultPort, incrementing if occupied.

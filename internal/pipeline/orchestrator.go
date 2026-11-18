@@ -190,9 +190,35 @@ func (o *Orchestrator) Execute(parentCtx context.Context, candidates []domain.Pr
 			// Launch pool of local proxy tunnels
 			instances, err := o.engine.StartPool(ctx, chunkConfigs)
 			if err != nil {
+				// Fallback: Try individual instances if pool creation failed (e.g. 1 bad config poisoned the batch)
 				for _, r := range chunkReports {
-					r.State = domain.StateComplete
-					r.IsClean = false
+					singleInstance, sErr := o.engine.StartPool(ctx, []domain.ProxyConfig{r.Config})
+					if sErr != nil || len(singleInstance) == 0 {
+						r.State = domain.StateComplete
+						r.IsClean = false
+						for _, p := range o.probes {
+							r.ProbeResults[p.ID()] = domain.ProbeResult{
+								ProbeID:      p.ID(),
+								ProbeName:    p.Name(),
+								Status:       domain.StatusFail,
+								ErrorMessage: fmt.Sprintf("Tunnel initialization failed: %v", sErr),
+								Diagnostic: &domain.DiagnosticInfo{
+									Layer:            domain.LayerLocalEngine,
+									InterceptionType: domain.InterceptLocalEngineError,
+									Summary:          fmt.Sprintf("Xray local port bind failed: %v", sErr),
+								},
+							}
+						}
+						atomic.AddInt64(&stats.Stage2Failed, 1)
+						if o.callbacks.OnItemUpdate != nil {
+							o.callbacks.OnItemUpdate(r)
+						}
+						continue
+					}
+
+					inst := singleInstance[0]
+					o.evaluateProxyProbes(ctx, r, inst.SOCKS5Endpoint(), &stats)
+					_ = inst.Close()
 				}
 				continue
 			}
@@ -236,6 +262,7 @@ func (o *Orchestrator) evaluateProxyProbes(
 	var resultsMu sync.Mutex
 
 	hasPass := false
+	probeCtx := context.WithValue(ctx, "config_id", r.Config.ID)
 
 	for _, p := range o.probes {
 		probe := p
@@ -243,7 +270,7 @@ func (o *Orchestrator) evaluateProxyProbes(
 
 		go func() {
 			defer probeWg.Done()
-			res := probe.Evaluate(ctx, endpoint)
+			res := probe.Evaluate(probeCtx, endpoint)
 
 			resultsMu.Lock()
 			r.ProbeResults[probe.ID()] = res
