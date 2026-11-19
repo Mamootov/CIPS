@@ -133,15 +133,18 @@ type ProbeResult struct {
 	Diagnostic   *DiagnosticInfo `json:"diagnostic,omitempty"`
 }
 
-// IPEnrichment holds intelligence data returned from ipleak.net.
+// IPEnrichment holds intelligence data returned from ipwho.is, ipleak.net, or Cloudflare.
 type IPEnrichment struct {
-	ExitIP      string `json:"exit_ip"`
-	CountryCode string `json:"country_code"`
-	CountryName string `json:"country_name"`
-	ISP         string `json:"isp"`
-	ASN         string `json:"asn"`
-	QueryTimeMs int64  `json:"query_time_ms"`
-	Success     bool   `json:"success"`
+	ExitIP         string `json:"exit_ip"`
+	CountryCode    string `json:"country_code"`
+	CountryName    string `json:"country_name"`
+	City           string `json:"city,omitempty"`
+	ISP            string `json:"isp"`
+	ASN            string `json:"asn"`
+	Org            string `json:"org,omitempty"`
+	ConnectionType string `json:"connection_type,omitempty"` // "Residential", "Data Center", "Business", "Wireless", "Unknown"
+	QueryTimeMs    int64  `json:"query_time_ms"`
+	Success        bool   `json:"success"`
 }
 
 type EvaluationState string
@@ -157,15 +160,16 @@ const (
 
 // ProxyEvaluationReport contains aggregate telemetry for a tested proxy.
 type ProxyEvaluationReport struct {
-	Config          ProxyConfig            `json:"config"`
-	State           EvaluationState        `json:"state"`
-	Stage1LatencyMs int64                  `json:"stage1_latency_ms"`
-	Stage1Passed    bool                   `json:"stage1_passed"`
-	ProbeResults    map[string]ProbeResult `json:"probe_results"`
-	IPInfo          IPEnrichment           `json:"ip_info"`
-	IsClean         bool                   `json:"is_clean"`
-	EnrichedURI     string                 `json:"enriched_uri"`
-	Timestamp       int64                  `json:"timestamp"`
+	Config            ProxyConfig            `json:"config"`
+	State             EvaluationState        `json:"state"`
+	Stage1LatencyMs   int64                  `json:"stage1_latency_ms"`
+	Stage1Passed      bool                   `json:"stage1_passed"`
+	ProbeResults      map[string]ProbeResult `json:"probe_results"`
+	IPInfo            IPEnrichment           `json:"ip_info"`
+	DownloadSpeedMbps float64                `json:"download_speed_mbps"`
+	IsClean           bool                   `json:"is_clean"`
+	EnrichedURI       string                 `json:"enriched_uri"`
+	Timestamp         int64                  `json:"timestamp"`
 }
 
 // NewReport initializes a report in QUEUED state.

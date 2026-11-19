@@ -76,6 +76,16 @@
                         <input type="range" id="timeout-p2" min="3000" max="15000" step="1000" value="8000" class="slider">
                     </div>
 
+                    <div class="setting-row mt-3 flex-row justify-between">
+                        <label for="enable-speedtest" style="cursor:pointer">⚡ Speed Test (AI Passed Only)</label>
+                        <input type="checkbox" id="enable-speedtest" checked style="cursor:pointer; accent-color: var(--primary); width:1.1rem; height:1.1rem;">
+                    </div>
+
+                    <div class="setting-row mt-2" id="speed-size-row">
+                        <label>Speed Payload: <span id="speed-size-val">3 MB</span></label>
+                        <input type="range" id="speed-size" min="1" max="5" step="1" value="3" class="slider">
+                    </div>
+
                     <div class="mt-4 flex-row gap-2">
                         <button id="btn-start" class="btn btn-primary flex-1">🚀 Start Pipeline</button>
                         <button id="btn-cancel" class="btn btn-danger" disabled>⏹️ Cancel</button>
@@ -116,6 +126,7 @@
                                 <th class="col-proto">Protocol</th>
                                 <th class="col-server">Server & Port</th>
                                 <th class="col-ping">Ping (P1)</th>
+                                <th class="col-speed">Speed</th>
                                 <!-- Vertical Service Column Checkpoints -->
                                 <th class="col-service checkpoint-header">
                                     <div class="header-content"><span class="badge-dot gemini"></span> Gemini</div>
@@ -124,14 +135,14 @@
                                     <div class="header-content"><span class="badge-dot aistudio"></span> AI Studio</div>
                                 </th>
                                 <th class="col-service checkpoint-header">
-                                    <div class="header-content"><span class="badge-dot ipleak"></span> IPLeak Info</div>
+                                    <div class="header-content"><span class="badge-dot ipleak"></span> IP Intelligence</div>
                                 </th>
                                 <th class="col-status">Pipeline State</th>
                             </tr>
                         </thead>
                         <tbody id="matrix-tbody">
                             <tr class="empty-state">
-                                <td colspan="8">No proxies loaded. Drag and drop a file or paste subscription links on the left to begin.</td>
+                                <td colspan="9">No proxies loaded. Drag and drop a file or paste subscription links on the left to begin.</td>
                             </tr>
                         </tbody>
                     </table>

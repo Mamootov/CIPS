@@ -18,14 +18,16 @@ type OrchestratorCallbacks struct {
 
 // Orchestrator manages the end-to-end two-stage proxy scanning pipeline.
 type Orchestrator struct {
-	engine      domain.IProxyEngine
-	probes      []domain.IProbe
-	callbacks   OrchestratorCallbacks
-	concurrency int
-	pingTimeout int
-	probeTimeout int
-	cancelFunc  context.CancelFunc
-	isRunning   atomic.Bool
+	engine          domain.IProxyEngine
+	probes          []domain.IProbe
+	speedProbe      domain.IProbe
+	enableSpeedtest bool
+	callbacks       OrchestratorCallbacks
+	concurrency     int
+	pingTimeout     int
+	probeTimeout    int
+	cancelFunc      context.CancelFunc
+	isRunning       atomic.Bool
 }
 
 // NewOrchestrator constructs a configured pipeline orchestrator.
@@ -55,6 +57,12 @@ func NewOrchestrator(
 		pingTimeout:  pingTimeout,
 		probeTimeout: probeTimeout,
 	}
+}
+
+// SetSpeedOptions configures conditional download speed measurement.
+func (o *Orchestrator) SetSpeedOptions(enable bool, probe domain.IProbe) {
+	o.enableSpeedtest = enable
+	o.speedProbe = probe
 }
 
 // SetProbes dynamically updates active probes.
@@ -261,7 +269,7 @@ func (o *Orchestrator) evaluateProxyProbes(
 	var probeWg sync.WaitGroup
 	var resultsMu sync.Mutex
 
-	hasPass := false
+	hasAIPass := false
 	probeCtx := context.WithValue(ctx, "config_id", r.Config.ID)
 
 	for _, p := range o.probes {
@@ -274,8 +282,9 @@ func (o *Orchestrator) evaluateProxyProbes(
 
 			resultsMu.Lock()
 			r.ProbeResults[probe.ID()] = res
-			if res.Status == domain.StatusPass {
-				hasPass = true
+			// Only actual AI service probes qualify a node for AI-Clean status (metadata/speed probes are auxiliary)
+			if probe.ID() != "ipleak" && probe.ID() != "speedtest" && res.Status == domain.StatusPass {
+				hasAIPass = true
 			}
 
 			// If probe provides IP information extraction
@@ -296,10 +305,28 @@ func (o *Orchestrator) evaluateProxyProbes(
 
 	probeWg.Wait()
 
-	r.State = domain.StateComplete
-	r.IsClean = hasPass
+	// Stage 2B: Conditional Speedtest (ONLY if at least one AI service passed!)
+	if o.enableSpeedtest && hasAIPass && o.speedProbe != nil {
+		speedRes := o.speedProbe.Evaluate(probeCtx, endpoint)
+		resultsMu.Lock()
+		r.ProbeResults[o.speedProbe.ID()] = speedRes
+		if speedRes.Status == domain.StatusPass {
+			var mbps float64
+			if _, sErr := fmt.Sscanf(speedRes.ErrorMessage, "%f Mbps", &mbps); sErr == nil {
+				r.DownloadSpeedMbps = mbps
+			}
+		}
+		resultsMu.Unlock()
 
-	if hasPass {
+		if o.callbacks.OnItemUpdate != nil {
+			o.callbacks.OnItemUpdate(r)
+		}
+	}
+
+	r.State = domain.StateComplete
+	r.IsClean = hasAIPass
+
+	if hasAIPass {
 		atomic.AddInt64(&stats.Stage2Clean, 1)
 	} else {
 		atomic.AddInt64(&stats.Stage2Failed, 1)

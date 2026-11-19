@@ -28,6 +28,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const timeoutP1Val = document.getElementById('timeout-p1-val');
     const timeoutP2Slider = document.getElementById('timeout-p2');
     const timeoutP2Val = document.getElementById('timeout-p2-val');
+    const enableSpeedtest = document.getElementById('enable-speedtest');
+    const speedSizeSlider = document.getElementById('speed-size');
+    const speedSizeVal = document.getElementById('speed-size-val');
 
     const statTotal = document.getElementById('stat-total');
     const statAlive = document.getElementById('stat-alive');
@@ -48,6 +51,9 @@ document.addEventListener('DOMContentLoaded', () => {
     concurrencySlider.addEventListener('input', (e) => concurrencyVal.textContent = e.target.value);
     timeoutP1Slider.addEventListener('input', (e) => timeoutP1Val.textContent = e.target.value);
     timeoutP2Slider.addEventListener('input', (e) => timeoutP2Val.textContent = e.target.value);
+    if (speedSizeSlider && speedSizeVal) {
+        speedSizeSlider.addEventListener('input', (e) => speedSizeVal.textContent = `${e.target.value} MB`);
+    }
 
     // Toast helper
     function showToast(msg, duration = 3000) {
@@ -169,7 +175,9 @@ document.addEventListener('DOMContentLoaded', () => {
             body: JSON.stringify({
                 concurrency: parseInt(concurrencySlider.value),
                 stage1_timeout_ms: parseInt(timeoutP1Slider.value),
-                stage2_timeout_ms: parseInt(timeoutP2Slider.value)
+                stage2_timeout_ms: parseInt(timeoutP2Slider.value),
+                enable_speedtest: enableSpeedtest ? enableSpeedtest.checked : true,
+                speedtest_bytes: speedSizeSlider ? parseInt(speedSizeSlider.value) * 1024 * 1024 : 3 * 1024 * 1024
             })
         })
         .then(res => res.json())
@@ -302,6 +310,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Service checkpoints
         const isComplete = report.state === 'COMPLETE';
+        const speedBadge = renderSpeedBadge(report.download_speed_mbps, report.probe_results['speedtest'], isComplete);
         const geminiCheck = renderCheckpoint(report.probe_results['gemini'], cfg.id, 'gemini', isComplete);
         const studioCheck = renderCheckpoint(report.probe_results['aistudio'], cfg.id, 'aistudio', isComplete);
         const ipleakCheck = renderIPLeakCell(report.ip_info);
@@ -334,6 +343,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 ${cfg.remark ? `<div style="font-size:0.75rem;color:var(--text-muted)">${escapeHtml(cfg.remark)}</div>` : ''}
             </td>
             <td class="col-ping">${pingBadge}</td>
+            <td class="col-speed">${speedBadge}</td>
             <td class="col-service">${geminiCheck}</td>
             <td class="col-service">${studioCheck}</td>
             <td class="col-service">${ipleakCheck}</td>
@@ -378,12 +388,37 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function renderIPLeakCell(ipInfo) {
         if (!ipInfo || !ipInfo.exit_ip) return '<span class="badge badge-pending">○</span>';
+        let connPill = '';
+        if (ipInfo.connection_type === 'Residential') {
+            connPill = '<span class="pill-res" title="Residential Network">🏠 Res</span>';
+        } else if (ipInfo.connection_type === 'Data Center') {
+            connPill = '<span class="pill-dc" title="Data Center / Hosting">🏢 DC</span>';
+        }
         return `
-            <div style="font-size:0.75rem">
-                <strong>${ipInfo.exit_ip}</strong>
-                <div style="color:var(--text-secondary)">[${ipInfo.country_code || '??'}] ${ipInfo.isp || 'Unknown'}</div>
+            <div style="font-size:0.75rem; text-align:left; font-family:var(--font-mono)">
+                <strong>[${ipInfo.country_code || '??'}]</strong> ${escapeHtml(ipInfo.isp || 'Unknown')}${connPill}
+                <div style="color:var(--text-muted); font-size:0.7rem">${ipInfo.exit_ip || ''} ${ipInfo.asn ? `(${escapeHtml(ipInfo.asn)})` : ''}</div>
             </div>
         `;
+    }
+
+    function renderSpeedBadge(speedMbps, speedRes, isComplete) {
+        if (speedMbps && speedMbps > 0) {
+            if (speedMbps >= 10.0) {
+                return `<span class="badge badge-speed-fast" title="Fast Download: ${speedMbps.toFixed(2)} Mbps">🚀 ${speedMbps.toFixed(1)} Mbps</span>`;
+            } else if (speedMbps >= 2.0) {
+                return `<span class="badge badge-speed-med" title="Moderate Download: ${speedMbps.toFixed(2)} Mbps">⚡ ${speedMbps.toFixed(1)} Mbps</span>`;
+            } else {
+                return `<span class="badge badge-speed-slow" title="Slow Download: ${speedMbps.toFixed(2)} Mbps">🐌 ${speedMbps.toFixed(1)} Mbps</span>`;
+            }
+        }
+        if (speedRes && speedRes.status === 'FAIL') {
+            return '<span class="badge badge-fail" title="Speedtest timed out or throttled">✗ Slow</span>';
+        }
+        if (isComplete) {
+            return '<span class="badge badge-pending" style="opacity:0.4" title="Speedtest skipped (AI failed or disabled)">—</span>';
+        }
+        return '<span class="badge badge-pending">○</span>';
     }
 
     function getFilteredConfigs() {

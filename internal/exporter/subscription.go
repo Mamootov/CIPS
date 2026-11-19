@@ -51,6 +51,18 @@ func EnrichProxyRemark(r *domain.ProxyEvaluationReport) string {
 		tagParts = append(tagParts, fmt.Sprintf("[%s]", r.IPInfo.ISP))
 	}
 
+	// Connection Type (Residential vs Datacenter)
+	if r.IPInfo.ConnectionType == "Residential" {
+		tagParts = append(tagParts, "[Res]")
+	} else if r.IPInfo.ConnectionType == "Data Center" {
+		tagParts = append(tagParts, "[DC]")
+	}
+
+	// Download Speed
+	if r.DownloadSpeedMbps > 0 {
+		tagParts = append(tagParts, fmt.Sprintf("[%.1fMbps]", r.DownloadSpeedMbps))
+	}
+
 	// Pass tags
 	var passedServices []string
 	for id, res := range r.ProbeResults {

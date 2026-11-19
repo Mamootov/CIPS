@@ -13,6 +13,7 @@ import (
 	"cips/internal/exporter"
 	"cips/internal/ingestion"
 	"cips/internal/pipeline"
+	"cips/internal/probe"
 )
 
 // ServerContext encapsulates shared state for HTTP handlers.
@@ -133,11 +134,19 @@ func (sc *ServerContext) HandleScanStart(w http.ResponseWriter, r *http.Request)
 	}
 
 	var req struct {
-		Concurrency     int `json:"concurrency"`
-		Stage1TimeoutMs int `json:"stage1_timeout_ms"`
-		Stage2TimeoutMs int `json:"stage2_timeout_ms"`
+		Concurrency     int  `json:"concurrency"`
+		Stage1TimeoutMs int  `json:"stage1_timeout_ms"`
+		Stage2TimeoutMs int  `json:"stage2_timeout_ms"`
+		EnableSpeedtest bool `json:"enable_speedtest"`
+		SpeedtestBytes  int  `json:"speedtest_bytes"`
 	}
 	_ = json.NewDecoder(r.Body).Decode(&req)
+
+	if req.SpeedtestBytes <= 0 {
+		req.SpeedtestBytes = 3 * 1024 * 1024 // 3MB default
+	}
+	speedP := probe.NewSpeedtestProbe(req.SpeedtestBytes, 3000)
+	sc.orchestrator.SetSpeedOptions(req.EnableSpeedtest, speedP)
 
 	sc.mu.RLock()
 	candidates := make([]domain.ProxyConfig, len(sc.candidates))
