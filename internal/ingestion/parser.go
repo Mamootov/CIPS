@@ -56,6 +56,11 @@ func parseVLESS(raw string) (domain.ProxyConfig, error) {
 		}
 	}
 
+	remark := u.Fragment
+	if unescaped, err := url.QueryUnescape(u.Fragment); err == nil && unescaped != "" {
+		remark = unescaped
+	}
+
 	cfg := domain.ProxyConfig{
 		RawURI:      raw,
 		Protocol:    domain.ProtocolVLESS,
@@ -67,7 +72,7 @@ func parseVLESS(raw string) (domain.ProxyConfig, error) {
 		Host:        q.Get("host"),
 		Path:        q.Get("path"),
 		Type:        q.Get("type"),
-		Remark:      u.Fragment,
+		Remark:      remark,
 		ExtraParams: extra,
 	}
 
@@ -138,6 +143,11 @@ func parseTrojan(raw string) (domain.ProxyConfig, error) {
 		}
 	}
 
+	remark := u.Fragment
+	if unescaped, err := url.QueryUnescape(u.Fragment); err == nil && unescaped != "" {
+		remark = unescaped
+	}
+
 	cfg := domain.ProxyConfig{
 		RawURI:      raw,
 		Protocol:    domain.ProtocolTrojan,
@@ -149,7 +159,7 @@ func parseTrojan(raw string) (domain.ProxyConfig, error) {
 		Host:        q.Get("host"),
 		Path:        q.Get("path"),
 		Type:        q.Get("type"),
-		Remark:      u.Fragment,
+		Remark:      remark,
 		ExtraParams: extra,
 	}
 
@@ -204,13 +214,18 @@ func parseShadowsocks(raw string) (domain.ProxyConfig, error) {
 		extra["method"] = method
 	}
 
+	remark := u.Fragment
+	if unescaped, err := url.QueryUnescape(u.Fragment); err == nil && unescaped != "" {
+		remark = unescaped
+	}
+
 	cfg := domain.ProxyConfig{
 		RawURI:      raw,
 		Protocol:    domain.ProtocolShadowsocks,
 		Server:      server,
 		Port:        port,
 		UUID:        password,
-		Remark:      u.Fragment,
+		Remark:      remark,
 		ExtraParams: extra,
 	}
 
@@ -225,12 +240,17 @@ func parseSocks5(raw string) (domain.ProxyConfig, error) {
 	}
 
 	port, _ := strconv.Atoi(u.Port())
+	remark := u.Fragment
+	if unescaped, err := url.QueryUnescape(u.Fragment); err == nil && unescaped != "" {
+		remark = unescaped
+	}
+
 	cfg := domain.ProxyConfig{
 		RawURI:   raw,
 		Protocol: domain.ProtocolSocks5,
 		Server:   u.Hostname(),
 		Port:     port,
-		Remark:   u.Fragment,
+		Remark:   remark,
 	}
 	cfg.ID = cfg.ComputeID()
 	return cfg, cfg.Validate()
@@ -251,12 +271,17 @@ func parseHTTP(raw string) (domain.ProxyConfig, error) {
 		}
 	}
 
+	remark := u.Fragment
+	if unescaped, err := url.QueryUnescape(u.Fragment); err == nil && unescaped != "" {
+		remark = unescaped
+	}
+
 	cfg := domain.ProxyConfig{
 		RawURI:   raw,
 		Protocol: domain.ProtocolHTTP,
 		Server:   u.Hostname(),
 		Port:     port,
-		Remark:   u.Fragment,
+		Remark:   remark,
 	}
 	cfg.ID = cfg.ComputeID()
 	return cfg, cfg.Validate()

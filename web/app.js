@@ -425,6 +425,21 @@ document.addEventListener('DOMContentLoaded', () => {
                 } else if (res.diagnostic.interception_type === 'GEO_RESTRICTED') {
                     label = '🌍 Geoblock';
                     title = 'Region Restricted - Click to inspect';
+                } else if (res.diagnostic.interception_type === 'BAD_REALITY_KEY') {
+                    label = '⚠️ Bad Reality';
+                    title = 'Invalid Reality public key or short ID - Click to inspect';
+                } else if (res.diagnostic.interception_type === 'BAD_CIPHER') {
+                    label = '⚠️ Bad Cipher';
+                    title = 'Unsupported Shadowsocks cipher - Click to inspect';
+                } else if (res.diagnostic.interception_type === 'BAD_UUID') {
+                    label = '⚠️ Bad UUID';
+                    title = 'Malformed user UUID in configuration - Click to inspect';
+                } else if (res.diagnostic.interception_type === 'UPSTREAM_REFUSED') {
+                    label = '⚠️ Remote Refused';
+                    title = 'Target remote proxy server refused connection - Click to inspect';
+                } else if (res.diagnostic.interception_type === 'HANDSHAKE_FAILED') {
+                    label = '⚠️ Handshake Failed';
+                    title = 'Protocol handshake dropped by upstream - Click to inspect';
                 } else if (res.diagnostic.interception_type === 'LOCAL_ENGINE_ERROR') {
                     label = '⚠️ Port Refused';
                     title = 'Local Engine Port Refused - Click to inspect';
@@ -604,6 +619,11 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('modal-ray-id').textContent = d.ray_id || 'N/A';
         document.getElementById('modal-final-url').textContent = d.final_url || 'N/A';
         document.getElementById('modal-summary').textContent = d.summary || res.error_message || 'N/A';
+
+        const engineLogEl = document.getElementById('modal-engine-log');
+        if (engineLogEl) {
+            engineLogEl.textContent = d.engine_log || 'No core stderr log recorded for this connection';
+        }
 
         document.getElementById('diag-modal').classList.add('open');
     };

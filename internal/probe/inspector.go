@@ -8,6 +8,7 @@ import (
 	http "github.com/bogdanfinn/fhttp"
 
 	"cips/internal/domain"
+	"cips/internal/engine"
 )
 
 var (
@@ -42,11 +43,45 @@ func InspectResponse(resp *http.Response, body []byte, reqErr error, targetURL s
 		}
 
 		if strings.Contains(errStr, "connectex") || strings.Contains(errStr, "actively refused it") || strings.Contains(errStr, "connection refused") {
+			recentLogs := engine.GlobalEngineLog.Lines()
+			recentText := strings.Join(recentLogs, "\n")
+			recentLower := strings.ToLower(recentText)
+
+			interception := domain.InterceptLocalEngineError
+			summary := "Local SOCKS5 port refused connection (Xray engine not ready or port conflict)"
+
+			if strings.Contains(recentLower, "reality") || strings.Contains(recentLower, "invalid public key") {
+				interception = domain.InterceptBadRealityKey
+				summary = "Invalid Reality public key or short ID in configuration"
+			} else if strings.Contains(recentLower, "cipher") || strings.Contains(recentLower, "unsupported encryption") {
+				interception = domain.InterceptBadCipher
+				summary = "Unsupported or deprecated cipher algorithm"
+			} else if strings.Contains(recentLower, "invalid uuid") || strings.Contains(recentLower, "user id") {
+				interception = domain.InterceptBadUUID
+				summary = "Malformed or invalid user UUID"
+			} else if strings.Contains(recentLower, "connection refused") || strings.Contains(recentLower, "failed to dial") {
+				interception = domain.InterceptUpstreamRefused
+				summary = "Remote upstream proxy server refused connection"
+			} else if strings.Contains(recentLower, "handshake") {
+				interception = domain.InterceptHandshakeFailed
+				summary = "Protocol handshake failed with upstream server"
+			}
+
+			// Capture up to 3 most relevant recent error lines
+			var snippet []string
+			for i := len(recentLogs) - 1; i >= 0 && len(snippet) < 3; i-- {
+				l := recentLogs[i]
+				if strings.Contains(l, "failed") || strings.Contains(l, "error") || strings.Contains(l, "Warning") {
+					snippet = append([]string{l}, snippet...)
+				}
+			}
+
 			return domain.DiagnosticInfo{
 				Layer:            domain.LayerLocalEngine,
-				InterceptionType: domain.InterceptLocalEngineError,
+				InterceptionType: interception,
 				FinalURL:         targetURL,
-				Summary:          "Local SOCKS5 port refused connection (Xray engine not ready or port conflict)",
+				Summary:          summary,
+				EngineLog:        strings.Join(snippet, "\n"),
 			}
 		}
 
@@ -107,10 +142,10 @@ func InspectResponse(resp *http.Response, body []byte, reqErr error, targetURL s
 
 	// 3. Check Cloudflare Challenge (Under-Attack / Turnstile / 403 / 503)
 	isCloudflareServer := strings.EqualFold(serverHeader, "cloudflare")
-	hasRayID := rayID != ""
 	hasCFTitle := strings.Contains(strings.ToLower(pageTitle), "just a moment") || strings.Contains(strings.ToLower(pageTitle), "attention required")
+	isCloudflareChallengeCode := (resp.StatusCode == 403 || resp.StatusCode == 503) && (isCloudflareServer || rayID != "")
 
-	if (isCloudflareServer && (resp.StatusCode == 403 || resp.StatusCode == 503 || hasRayID)) || hasCFTitle {
+	if isCloudflareChallengeCode || hasCFTitle {
 		summary := "Cloudflare security challenge / Turnstile"
 		if rayID != "" {
 			summary = fmt.Sprintf("Cloudflare challenge (Ray-ID: %s)", rayID)

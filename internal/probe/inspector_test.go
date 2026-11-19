@@ -2,11 +2,13 @@ package probe
 
 import (
 	"errors"
+	"strings"
 	"testing"
 
 	http "github.com/bogdanfinn/fhttp"
 
 	"cips/internal/domain"
+	"cips/internal/engine"
 )
 
 func TestInspectCloudflareChallenge(t *testing.T) {
@@ -109,5 +111,19 @@ func TestInspectLocalEngineRefused(t *testing.T) {
 	}
 	if diag.InterceptionType != domain.InterceptLocalEngineError {
 		t.Errorf("expected LOCAL_ENGINE_ERROR, got %s", diag.InterceptionType)
+	}
+}
+
+func TestInspectRealityKeyFailure(t *testing.T) {
+	engine.GlobalEngineLog.Write([]byte("2026/11/19 14:00:00 [Warning] failed to parse reality config: invalid public key length\n"))
+	reqErr := errors.New("dial tcp 127.0.0.1:20005: connectex: actively refused it")
+
+	diag := InspectResponse(nil, nil, reqErr, "https://chatgpt.com/")
+
+	if diag.InterceptionType != domain.InterceptBadRealityKey {
+		t.Errorf("expected BAD_REALITY_KEY, got %s", diag.InterceptionType)
+	}
+	if !strings.Contains(diag.EngineLog, "reality") {
+		t.Errorf("expected engine log to contain reality, got %s", diag.EngineLog)
 	}
 }

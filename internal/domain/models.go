@@ -106,6 +106,11 @@ const (
 	InterceptGoogleUnusualTraffic InterceptionType = "GOOGLE_UNUSUAL_TRAFFIC" // Google /sorry/index captcha redirect
 	InterceptGeoRestricted        InterceptionType = "GEO_RESTRICTED"         // Region not supported banner
 	InterceptLocalEngineError     InterceptionType = "LOCAL_ENGINE_ERROR"     // connectex / socket refused
+	InterceptBadRealityKey        InterceptionType = "BAD_REALITY_KEY"        // Reality pbk or short ID invalid
+	InterceptBadCipher            InterceptionType = "BAD_CIPHER"             // Deprecated or unsupported Shadowsocks cipher
+	InterceptBadUUID              InterceptionType = "BAD_UUID"               // Malformed user UUID
+	InterceptUpstreamRefused      InterceptionType = "UPSTREAM_REFUSED"       // Target server rejected connection
+	InterceptHandshakeFailed      InterceptionType = "HANDSHAKE_FAILED"       // TLS / WebSocket / gRPC handshake dropped
 	InterceptUpstreamTimeout      InterceptionType = "UPSTREAM_TIMEOUT"       // Remote node timed out
 	InterceptUnknown              InterceptionType = "UNKNOWN"
 )
@@ -120,6 +125,7 @@ type DiagnosticInfo struct {
 	RayID            string           `json:"ray_id,omitempty"`
 	PageTitle        string           `json:"page_title,omitempty"`
 	Summary          string           `json:"summary"`
+	EngineLog        string           `json:"engine_log,omitempty"`
 }
 
 // ProbeResult represents the outcome of a single probe evaluation.

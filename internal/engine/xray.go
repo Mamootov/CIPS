@@ -266,7 +266,7 @@ func (xe *XrayEngine) buildPoolConfig(configs []domain.ProxyConfig, ports []int)
 
 	config := map[string]interface{}{
 		"log": map[string]interface{}{
-			"loglevel": "none",
+			"loglevel": "warning",
 		},
 		"inbounds":  inbounds,
 		"outbounds": outbounds,

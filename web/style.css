@@ -592,4 +592,19 @@ body {
 }
 .diag-layer-tag.local { background: rgba(245, 158, 11, 0.2); color: var(--warning); }
 .diag-layer-tag.upstream { background: rgba(59, 130, 246, 0.2); color: var(--primary); }
+
+.diag-log-box {
+    background: #090d16;
+    border: 1px solid rgba(239, 68, 68, 0.3);
+    border-radius: 6px;
+    padding: 0.5rem 0.75rem;
+    font-family: var(--font-mono);
+    font-size: 0.72rem;
+    color: #fca5a5;
+    white-space: pre-wrap;
+    word-break: break-all;
+    max-height: 120px;
+    overflow-y: auto;
+    margin: 0;
+}
 .diag-layer-tag.target { background: rgba(239, 68, 68, 0.2); color: var(--danger); }
