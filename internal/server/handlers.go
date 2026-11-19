@@ -134,13 +134,23 @@ func (sc *ServerContext) HandleScanStart(w http.ResponseWriter, r *http.Request)
 	}
 
 	var req struct {
-		Concurrency     int  `json:"concurrency"`
-		Stage1TimeoutMs int  `json:"stage1_timeout_ms"`
-		Stage2TimeoutMs int  `json:"stage2_timeout_ms"`
-		EnableSpeedtest bool `json:"enable_speedtest"`
-		SpeedtestBytes  int  `json:"speedtest_bytes"`
+		Concurrency     int                      `json:"concurrency"`
+		Stage1TimeoutMs int                      `json:"stage1_timeout_ms"`
+		Stage2TimeoutMs int                      `json:"stage2_timeout_ms"`
+		EnableSpeedtest bool                     `json:"enable_speedtest"`
+		SpeedtestBytes  int                      `json:"speedtest_bytes"`
+		Services        []string                 `json:"services"`
+		CustomProbes    []domain.ProbeDefinition `json:"custom_probes"`
 	}
 	_ = json.NewDecoder(r.Body).Decode(&req)
+
+	if req.Stage2TimeoutMs <= 0 {
+		req.Stage2TimeoutMs = 8000
+	}
+
+	// Build dynamic probe suite based on user selection
+	activeProbes := probe.BuildProbeSuite(req.Services, req.CustomProbes, req.Stage2TimeoutMs)
+	sc.orchestrator.SetProbes(activeProbes)
 
 	if req.SpeedtestBytes <= 0 {
 		req.SpeedtestBytes = 3 * 1024 * 1024 // 3MB default

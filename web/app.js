@@ -6,7 +6,15 @@ document.addEventListener('DOMContentLoaded', () => {
         filter: 'all',
         searchQuery: '',
         isScanning: false,
-        stats: { total: 0, alive: 0, clean: 0, dead: 0 }
+        stats: { total: 0, alive: 0, clean: 0, dead: 0 },
+        activeServices: ['gemini', 'aistudio', 'chatgpt'],
+        customProbes: [],
+        serviceLabels: {
+            'gemini': 'Gemini',
+            'aistudio': 'AI Studio',
+            'chatgpt': 'ChatGPT',
+            'claude': 'Claude'
+        }
     };
 
     // Elements
@@ -165,6 +173,11 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
+        if (state.activeServices.length === 0 && state.customProbes.length === 0) {
+            showToast('Please select at least one target service to test');
+            return;
+        }
+
         btnStart.disabled = true;
         btnCancel.disabled = false;
         state.isScanning = true;
@@ -177,7 +190,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 stage1_timeout_ms: parseInt(timeoutP1Slider.value),
                 stage2_timeout_ms: parseInt(timeoutP2Slider.value),
                 enable_speedtest: enableSpeedtest ? enableSpeedtest.checked : true,
-                speedtest_bytes: speedSizeSlider ? parseInt(speedSizeSlider.value) * 1024 * 1024 : 3 * 1024 * 1024
+                speedtest_bytes: speedSizeSlider ? parseInt(speedSizeSlider.value) * 1024 * 1024 : 3 * 1024 * 1024,
+                services: state.activeServices,
+                custom_probes: state.customProbes
             })
         })
         .then(res => res.json())
@@ -260,12 +275,44 @@ document.addEventListener('DOMContentLoaded', () => {
     loadInitialSession();
 
     // Table Rendering & Updating
+    function renderTableHeaders() {
+        const headerRow = document.getElementById('matrix-header-row');
+        if (!headerRow) return;
+
+        let serviceHeaders = '';
+        state.activeServices.forEach(id => {
+            const label = state.serviceLabels[id] || id;
+            serviceHeaders += `<th class="col-service checkpoint-header"><div class="header-content"><span class="badge-dot ${id}"></span> ${escapeHtml(label)}</div></th>`;
+        });
+
+        state.customProbes.forEach(cp => {
+            serviceHeaders += `<th class="col-service checkpoint-header"><div class="header-content"><span class="badge-dot custom"></span> ${escapeHtml(cp.name)}</div></th>`;
+        });
+
+        headerRow.innerHTML = `
+            <th class="col-idx">#</th>
+            <th class="col-proto">Protocol</th>
+            <th class="col-server">Server & Port</th>
+            <th class="col-ping">Ping (P1)</th>
+            <th class="col-speed">Speed</th>
+            ${serviceHeaders}
+            <th class="col-service checkpoint-header"><div class="header-content"><span class="badge-dot ipleak"></span> IP Intelligence</div></th>
+            <th class="col-status">Pipeline State</th>
+        `;
+
+        const totalCols = 5 + state.activeServices.length + state.customProbes.length + 2;
+        const emptyTd = document.getElementById('empty-state-td');
+        if (emptyTd) emptyTd.setAttribute('colspan', totalCols);
+    }
+
     function renderTable() {
+        renderTableHeaders();
         const filtered = getFilteredConfigs();
+        const totalCols = 5 + state.activeServices.length + state.customProbes.length + 2;
         if (filtered.length === 0) {
             matrixTbody.innerHTML = `
                 <tr class="empty-state">
-                    <td colspan="8">${state.configs.size === 0 ? 'No proxies loaded. Ingest files on the left to start.' : 'No proxies match current filter.'}</td>
+                    <td colspan="${totalCols}" id="empty-state-td">${state.configs.size === 0 ? 'No proxies loaded. Ingest files on the left to start.' : 'No proxies match current filter.'}</td>
                 </tr>
             `;
             return;
@@ -311,9 +358,15 @@ document.addEventListener('DOMContentLoaded', () => {
         // Service checkpoints
         const isComplete = report.state === 'COMPLETE';
         const speedBadge = renderSpeedBadge(report.download_speed_mbps, report.probe_results['speedtest'], isComplete);
-        const geminiCheck = renderCheckpoint(report.probe_results['gemini'], cfg.id, 'gemini', isComplete);
-        const studioCheck = renderCheckpoint(report.probe_results['aistudio'], cfg.id, 'aistudio', isComplete);
         const ipleakCheck = renderIPLeakCell(report.ip_info);
+
+        const serviceCells = [];
+        state.activeServices.forEach(id => {
+            serviceCells.push(`<td class="col-service">${renderCheckpoint(report.probe_results[id], cfg.id, id, isComplete)}</td>`);
+        });
+        state.customProbes.forEach(cp => {
+            serviceCells.push(`<td class="col-service">${renderCheckpoint(report.probe_results[cp.id], cfg.id, cp.id, isComplete)}</td>`);
+        });
 
         // State pill
         let stateHtml = '';
@@ -344,8 +397,7 @@ document.addEventListener('DOMContentLoaded', () => {
             </td>
             <td class="col-ping">${pingBadge}</td>
             <td class="col-speed">${speedBadge}</td>
-            <td class="col-service">${geminiCheck}</td>
-            <td class="col-service">${studioCheck}</td>
+            ${serviceCells.join('')}
             <td class="col-service">${ipleakCheck}</td>
             <td class="col-status">${stateHtml}</td>
         `;
@@ -570,6 +622,108 @@ document.addEventListener('DOMContentLoaded', () => {
         if (e.key === 'Escape') {
             document.getElementById('diag-modal').classList.remove('open');
         }
+    });
+
+    // Custom Target Modal & Service Chips Listeners
+    const btnOpenCustomModal = document.getElementById('btn-open-custom-modal');
+    const customModal = document.getElementById('custom-modal');
+    const customModalClose = document.getElementById('custom-modal-close');
+    const btnCancelCustomModal = document.getElementById('btn-cancel-custom-modal');
+    const btnSaveCustom = document.getElementById('btn-save-custom-service');
+
+    if (btnOpenCustomModal && customModal) {
+        btnOpenCustomModal.addEventListener('click', () => {
+            customModal.classList.add('open');
+        });
+    }
+
+    [customModalClose, btnCancelCustomModal].forEach(b => {
+        if (b && customModal) {
+            b.addEventListener('click', () => customModal.classList.remove('open'));
+        }
+    });
+
+    if (customModal) {
+        customModal.addEventListener('click', (e) => {
+            if (e.target.id === 'custom-modal') {
+                customModal.classList.remove('open');
+            }
+        });
+    }
+
+    if (btnSaveCustom) {
+        btnSaveCustom.addEventListener('click', () => {
+            const nameInput = document.getElementById('modal-custom-name');
+            const urlInput = document.getElementById('modal-custom-url');
+            const statusInput = document.getElementById('modal-custom-status');
+
+            const name = nameInput.value.trim();
+            const url = urlInput.value.trim();
+            const status = parseInt(statusInput.value) || 200;
+
+            if (!name || !url) {
+                showToast('Please provide target name and URL');
+                return;
+            }
+
+            const customId = 'custom_' + Date.now();
+            const def = {
+                id: customId,
+                name: name,
+                target_url: url,
+                method: 'GET',
+                expected_status: status,
+                timeout_ms: 8000
+            };
+
+            state.customProbes.push(def);
+
+            // Add chip to UI
+            const chipsContainer = document.getElementById('service-chips');
+            const newChip = document.createElement('label');
+            newChip.className = 'chip active';
+            newChip.innerHTML = `<input type="checkbox" value="${customId}" checked> ${escapeHtml(name)}`;
+            chipsContainer.insertBefore(newChip, btnOpenCustomModal);
+
+            newChip.querySelector('input').addEventListener('change', (e) => {
+                if (e.target.checked) {
+                    newChip.classList.add('active');
+                } else {
+                    newChip.classList.remove('active');
+                    state.customProbes = state.customProbes.filter(p => p.id !== customId);
+                }
+                renderTable();
+            });
+
+            customModal.classList.remove('open');
+            nameInput.value = '';
+            urlInput.value = '';
+            showToast(`Custom target "${name}" added`);
+            renderTable();
+        });
+    }
+
+    // Built-in Service Chips Toggles
+    const serviceChips = document.querySelectorAll('#service-chips input[type="checkbox"]');
+    serviceChips.forEach(chk => {
+        chk.addEventListener('change', () => {
+            const parent = chk.closest('.chip');
+            if (chk.checked) {
+                parent.classList.add('active');
+            } else {
+                parent.classList.remove('active');
+            }
+
+            // Sync activeServices
+            const selected = [];
+            document.querySelectorAll('#service-chips input[type="checkbox"]:checked').forEach(c => {
+                if (!c.value.startsWith('custom_')) {
+                    selected.push(c.value);
+                }
+            });
+            state.activeServices = selected;
+            renderTable();
+        });
     });
 
     function escapeHtml(str) {

@@ -136,17 +136,15 @@ func InspectResponse(resp *http.Response, body []byte, reqErr error, targetURL s
 		"isn't currently supported in your country",
 		"location_error",
 		"unsupported country",
+		"unsupported_country",
 		"user location not supported",
 		"not available in your country",
 		"not available in your region",
 		"your region may not be supported",
 		"region may not be supported",
 		"available-regions",
-		"در کشورتان دردسترس نیست",
-		"در کشورتان در دسترس نیست",
-		"در کشور شما در دسترس نیست",
-		"جمینای در کشورتان دردسترس نیست",
-		"پشتیبانی نمی‌شود",
+		"openai's services are not available",
+		"claude is not available in your region",
 	}
 
 	for _, token := range geoblockTokens {

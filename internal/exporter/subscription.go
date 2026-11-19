@@ -72,6 +72,12 @@ func EnrichProxyRemark(r *domain.ProxyEvaluationReport) string {
 				passedServices = append(passedServices, "Gemini")
 			case "aistudio":
 				passedServices = append(passedServices, "Studio")
+			case "chatgpt":
+				passedServices = append(passedServices, "ChatGPT")
+			case "claude":
+				passedServices = append(passedServices, "Claude")
+			case "ipleak", "speedtest":
+				// Skip auxiliary probes
 			default:
 				passedServices = append(passedServices, id)
 			}

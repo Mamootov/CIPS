@@ -61,7 +61,18 @@
                 <section class="card mt-3">
                     <h2 class="section-title">2. Pipeline Configuration</h2>
                     
-                    <div class="setting-row">
+                    <div class="setting-row mt-2">
+                        <label style="font-weight:600">Target Services:</label>
+                        <div class="service-chips mt-1" id="service-chips">
+                            <label class="chip active"><input type="checkbox" value="gemini" checked> Gemini</label>
+                            <label class="chip active"><input type="checkbox" value="aistudio" checked> AI Studio</label>
+                            <label class="chip active"><input type="checkbox" value="chatgpt" checked> ChatGPT</label>
+                            <label class="chip"><input type="checkbox" value="claude"> Claude</label>
+                            <button type="button" id="btn-open-custom-modal" class="chip chip-add">+ Add URL</button>
+                        </div>
+                    </div>
+
+                    <div class="setting-row mt-2">
                         <label>Concurrency: <span id="concurrency-val">20</span> workers</label>
                         <input type="range" id="concurrency" min="5" max="100" value="20" class="slider">
                     </div>
@@ -121,28 +132,23 @@
                 <div class="table-container">
                     <table class="matrix-table">
                         <thead>
-                            <tr>
+                            <tr id="matrix-header-row">
                                 <th class="col-idx">#</th>
                                 <th class="col-proto">Protocol</th>
                                 <th class="col-server">Server & Port</th>
                                 <th class="col-ping">Ping (P1)</th>
                                 <th class="col-speed">Speed</th>
-                                <!-- Vertical Service Column Checkpoints -->
-                                <th class="col-service checkpoint-header">
-                                    <div class="header-content"><span class="badge-dot gemini"></span> Gemini</div>
-                                </th>
-                                <th class="col-service checkpoint-header">
-                                    <div class="header-content"><span class="badge-dot aistudio"></span> AI Studio</div>
-                                </th>
-                                <th class="col-service checkpoint-header">
-                                    <div class="header-content"><span class="badge-dot ipleak"></span> IP Intelligence</div>
-                                </th>
+                                <!-- Dynamic Service Columns populated via JS -->
+                                <th class="col-service checkpoint-header"><div class="header-content"><span class="badge-dot gemini"></span> Gemini</div></th>
+                                <th class="col-service checkpoint-header"><div class="header-content"><span class="badge-dot aistudio"></span> AI Studio</div></th>
+                                <th class="col-service checkpoint-header"><div class="header-content"><span class="badge-dot chatgpt"></span> ChatGPT</div></th>
+                                <th class="col-service checkpoint-header"><div class="header-content"><span class="badge-dot ipleak"></span> IP Intelligence</div></th>
                                 <th class="col-status">Pipeline State</th>
                             </tr>
                         </thead>
                         <tbody id="matrix-tbody">
                             <tr class="empty-state">
-                                <td colspan="9">No proxies loaded. Drag and drop a file or paste subscription links on the left to begin.</td>
+                                <td colspan="10" id="empty-state-td">No proxies loaded. Drag and drop a file or paste subscription links on the left to begin.</td>
                             </tr>
                         </tbody>
                     </table>
@@ -153,6 +159,34 @@
 
     <!-- Notification Toast -->
     <div id="toast" class="toast"></div>
+
+    <!-- Custom Target Probe Modal -->
+    <div id="custom-modal" class="modal-overlay">
+        <div class="modal-content" style="max-width: 440px;">
+            <div class="modal-header">
+                <h3>🌐 Add Custom Target URL</h3>
+                <button id="custom-modal-close" class="modal-close">&times;</button>
+            </div>
+            <div class="modal-body" style="padding: 1.25rem;">
+                <div class="setting-row">
+                    <label>Target Name (e.g. Flow, Groq, MyAPI)</label>
+                    <input type="text" id="modal-custom-name" class="search-input full-width mt-1" placeholder="e.g. Flow AI">
+                </div>
+                <div class="setting-row mt-3">
+                    <label>Target URL (HTTPS)</label>
+                    <input type="url" id="modal-custom-url" class="search-input full-width mt-1" placeholder="https://flow.ai/login">
+                </div>
+                <div class="setting-row mt-3">
+                    <label>Expected Status Code</label>
+                    <input type="number" id="modal-custom-status" class="search-input full-width mt-1" value="200">
+                </div>
+                <div class="mt-4 flex-row gap-2">
+                    <button id="btn-save-custom-service" class="btn btn-primary flex-1">Save & Add Target</button>
+                    <button id="btn-cancel-custom-modal" class="btn btn-secondary">Cancel</button>
+                </div>
+            </div>
+        </div>
+    </div>
 
     <!-- Diagnostic Inspection Modal -->
     <div id="diag-modal" class="modal-overlay">

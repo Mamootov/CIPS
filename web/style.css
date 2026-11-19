@@ -351,7 +351,54 @@ body {
 }
 .badge-dot.gemini { background: #60a5fa; }
 .badge-dot.aistudio { background: #c084fc; }
+.badge-dot.chatgpt { background: #10a37f; }
+.badge-dot.claude { background: #d97706; }
+.badge-dot.custom { background: #ec4899; }
 .badge-dot.ipleak { background: #34d399; }
+
+/* Service Chips Selector */
+.service-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+}
+.chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.3rem 0.65rem;
+    background: var(--bg-input);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all 0.15s ease;
+    user-select: none;
+}
+.chip input[type="checkbox"] {
+    accent-color: var(--primary);
+    cursor: pointer;
+}
+.chip:hover {
+    border-color: var(--primary);
+    color: var(--text-primary);
+}
+.chip.active {
+    background: rgba(99, 102, 241, 0.12);
+    border-color: var(--primary);
+    color: var(--primary);
+}
+.chip-add {
+    background: transparent;
+    border: 1px dashed var(--text-muted);
+    color: var(--text-muted);
+}
+.chip-add:hover {
+    border-color: var(--primary);
+    color: var(--primary);
+}
 
 .matrix-table td {
     padding: 0.75rem 1rem;
