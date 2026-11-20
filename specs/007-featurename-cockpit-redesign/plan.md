@@ -1,41 +1,55 @@
 # Implementation Plan: 007 - Cockpit UI/UX Redesign & 4-View Observability Architecture
 
 **Feature Branch**: `007-featurename-cockpit-redesign`  
-**Status**: Ready for Implementation  
+**Status**: Implemented & Verified  
 
 ---
 
 ## 1. Technical Architecture & File Modifications
 
 ```
-┌────────────────────────────────────────────────────────────────────────┐
-│                        web/index.html                                  │
-│  - Persistent Header with 4 Navigation Tabs                            │
-│  - View 1: #view-dashboard (KPI Cards + Filter Dock + Matrix Table)    │
-│  - View 2: #view-map (3D WebGL Canvas + Overlays + 2D Traffic Map)     │
-│  - View 3: #view-probes (Probe Cards Grid + Builder Form)              │
-│  - View 4: #view-subscriptions (Feed URL + Presets + QR Container)     │
-│  - Floating Bottom Command Dock & Modals (Ingest, Diag Inspector)      │
-└───────────────────────────────────┬────────────────────────────────────┘
-                                    │
-┌───────────────────────────────────▼────────────────────────────────────┐
-│                        web/style.css                                   │
-│  - Dark Cockpit Palette (#02050a base, #080e1a cards, #10b981 emerald) │
-│  - Sentry-style KPI Card Flexbox & Stacked Health Bars                 │
-│  - Terralogix Pill Badges, Glassmorphism Overlays, Modal Code Blocks   │
-│  - Floating Command Dock Styles (fixed bottom blur capsule)            │
-└───────────────────────────────────┬────────────────────────────────────┘
-                                    │
-┌───────────────────────────────────▼────────────────────────────────────┐
-│                        web/app.js                                      │
-│  - Tab Router & View Switcher                                          │
-│  - Three.js 3D Earth Globe Controller (rotation, zoom, starfield)      │
-│  - Raycasting Node Click ➔ Spectrum Arc & Inspector Card Sync          │
-│  - Constellation City Jitter Algorithm                                 │
-│  - 2D Vector Traffic Map SVG Controller (green/red traffic paths)      │
-│  - Real-time KPI Metric Calculations (p50, p95, Average Speed, Yield)  │
-│  - SSE Live Event Hydration & Floating Dock State Transitions          │
-└────────────────────────────────────────────────────────────────────────┘
++------------------------------------------------------------------------+
+|                        web/index.html                                  |
+|  - Persistent Header with 4 Navigation Tabs                            |
+|  - View 1: #view-dashboard (KPI Cards + Filter Dock + Matrix Table)    |
+|  - View 2: #view-map (3D WebGL Canvas + Overlays + 2D Traffic Map)     |
+|  - View 3: #view-probes (Probe Cards Grid + Builder Form)              |
+|  - View 4: #view-subscriptions (Feed URL + Presets + QR Container)     |
+|  - Floating Bottom Command Dock & Modals (Ingest, Settings, Inspector) |
++-----------------------------------+------------------------------------+
+                                    |
++-----------------------------------v------------------------------------+
+|                        web/style.css                                   |
+|  - Dark Cockpit Palette (#02050a base, #080e1a cards, #10b981 emerald) |
+|  - Sentry-style KPI Card Flexbox & Stacked Health Bars                 |
+|  - Terralogix Pill Badges, Glassmorphism Overlays, Modal Code Blocks   |
+|  - Floating Command Dock Styles (fixed bottom blur capsule)            |
+|  - Concurrency & Timeout Sliders CSS Styling                           |
++-----------------------------------+------------------------------------+
+                                    |
++-----------------------------------v------------------------------------+
+|                        web/app.js                                      |
+|  - Tab Router & View Switcher                                          |
+|  - Three.js 3D Tactical Earth Globe Controller (rotation, zoom, stars) |
+|  - GeodesicOrbitCurve Non-Penetrating Great-Circle Corridors           |
+|  - Continuous High-Speed Pure White Photon Stream Animation (60 FPS)   |
+|  - Auto-detected Host Origin Egress Sync (GET /api/origin)             |
+|  - Universal 249-Country Flags & Dynamic Filter Pills                  |
+|  - Automatic Speed Sorting for Available Proxies                       |
+|  - Dynamic Probe Studio Timeouts & Available Nodes Gating              |
+|  - 2D Vector Traffic Map SVG Controller (green/red traffic paths)      |
+|  - Real-time KPI Metric Calculations (p50, p95, Average Speed, Yield)  |
+|  - Named SSE Event Listeners ('item_update', 'stats')                  |
++-----------------------------------+------------------------------------+
+                                    |
++-----------------------------------v------------------------------------+
+|                        Go Backend Modules                              |
+|  - internal/probe/ip_intel.go: DetectHostOrigin()                      |
+|  - internal/server/handlers.go: GET /api/origin, concurrency support   |
+|  - internal/pipeline/orchestrator.go: SetConcurrency, parallel fallback|
+|  - internal/domain/models.go: Thread-safe Clone() deep copy            |
+|  - internal/engine/xray.go: Scoped mutex, dynamic port readiness budget|
++------------------------------------------------------------------------+
 ```
 
 ---
@@ -43,27 +57,26 @@
 ## 2. Component Implementation Details
 
 ### 2.1 View 1: Dashboard Cockpit
-- Relocate sidebar elements into `#ingest-modal`.
-- Top Header contains only branding, 4 tabs, and live status badge.
-- Implement Sentry KPI metrics calculator:
+- Persistent top header with 4 tabs and live engine indicator (`XRAY READY`).
+- Sentry KPI metrics calculator:
   - `p50` and `p95` calculated from completed probe latency arrays.
   - Health bar segment widths calculated dynamically: `cleanCount / total`, `geoCount / total`, `rateCount / total`, `failCount / total`.
-- Filter dock with live search (`Ctrl+K` handler).
+- Dynamic Filter Dock:
+  - Dynamic country pills generated from evaluated reports.
+  - Automatic download speed sorting when `Available` is active.
 
 ### 2.2 View 2: Fleet Globe 3D & Global Traffic Map
-- Three.js renderer attached to `#globe-canvas`.
-- Earth sphere loaded with `web/assets/earth-tactical-dark.jpg` base64 data texture.
-- Node pins rendered at city lat/lon with constellation jittering.
-- Clicking any node:
-  - Generates a single quadratic Bezier curve from Tehran to the selected node.
-  - Applies 5-stop vertex color gradient (Emerald ➔ Cyan ➔ Purple ➔ Pink ➔ Rose).
-  - Animates 4 data packet meshes along the curve.
-  - Populates `#node-inspector-card`.
-- 2D vector Traffic Map widget in `#traffic-map-card` renders green vs red lines based on backend report pass/fail state.
+- Three.js renderer attached to `#globe-canvas` with `earth-tactical-dark.jpg` texture.
+- Auto-detected host origin dynamically anchors source point on the globe and 2D map.
+- Geodesic Great-Circle trajectory (`GeodesicOrbitCurve`) guarantees line stays above spherical terrain.
+- Tiny pure-white photon beads animate continuously at 60 FPS.
+- Three.js mesh/material disposal prevents orphan beads on server switch.
+- 2D vector Traffic Map widget mirrors active node route in real time.
 
 ### 2.3 View 3: Probe Studio
-- Renders cards for Gemini, AI Studio, ChatGPT, Claude, and Speedtest.
-- Custom probe form directly triggers `POST /api/scan/start` payload customization.
+- Evaluator cards for Gemini, AI Studio, ChatGPT, Claude, and Speedtest.
+- Synchronized timeout displays matching active engine timeout (`8,000 ms`).
+- Speedtest gating clearly set to `Available Nodes Only`.
 
 ### 2.4 View 4: Subscriptions Hub
 - Renders local feed URL with 1-click clipboard copy.

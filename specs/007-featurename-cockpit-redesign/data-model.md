@@ -7,28 +7,36 @@
 ### 1.1 `CockpitState`
 ```typescript
 interface CockpitState {
-  currentTab: 'dashboard' | 'map' | 'probes' | 'subscriptions';
-  reports: Map<string, EvaluationReport>;
+  activeTab: 'dashboard' | 'map' | 'probes' | 'subscriptions';
+  reports: Map<string, ProxyEvaluationReport>;
   filter: {
-    status: 'all' | 'clean' | 'geo' | 'fail';
+    status: 'all' | 'clean' | 'available' | 'geo' | 'error' | 'residential';
     country: string | null;
     residentialOnly: boolean;
     searchQuery: string;
   };
-  metrics: {
-    total: number;
-    cleanCount: number;
-    geoCount: number;
-    failCount: number;
-    avgSpeedMbps: number;
-    p50LatencyMs: number;
-    p95LatencyMs: number;
-  };
-  globe: {
-    selectedNodeId: string | null;
-    selectedCity: string | null;
-    cityClusters: Map<string, ClusterNode[]>;
-  };
+  globeFilter: 'all' | 'clean' | 'residential' | string; // 'all' or ISO country code
+  activeProbes: string[]; // e.g. ['gemini', 'aistudio', 'chatgpt', 'claude', 'speedtest']
+  customProbes: CustomProbeDef[];
+  concurrency: number; // 5 - 100 workers
+  stage1Timeout: number; // 1000 - 8000 ms
+  stage2Timeout: number; // 3000 - 15000 ms
+  speedtestEnabled: boolean;
+  speedtestSizeMb: number; // 1 - 5 MB
+  scanRunning: boolean;
+  selectedNodeId: string | null;
+  origin: HostOrigin;
+}
+
+interface HostOrigin {
+  ip: string;
+  country_code: string;
+  country_name: string;
+  city: string;
+  latitude: number;
+  longitude: number;
+  isp?: string;
+  flag?: string;
 }
 ```
 
@@ -53,20 +61,31 @@ interface ClusterNode {
 
 ---
 
-## 2. City Coordinate Registry
-```javascript
-const CITY_GEO_REGISTRY = {
-  "Frankfurt": { lat: 50.1109, lon: 8.6821, country: "DE" },
-  "Nuremberg": { lat: 49.4521, lon: 11.0767, country: "DE" },
-  "Amsterdam": { lat: 52.3676, lon: 4.9041, country: "NL" },
-  "Helsinki":  { lat: 60.1699, lon: 24.9384, country: "FI" },
-  "New York":  { lat: 40.7128, lon: -74.0060, country: "US" },
-  "San Jose":  { lat: 37.3382, lon: -121.8863, country: "US" },
-  "London":    { lat: 51.5074, lon: -0.1278, country: "GB" },
-  "Paris":     { lat: 48.8566, lon: 2.3522, country: "FR" },
-  "Moscow":    { lat: 55.7558, lon: 37.6173, country: "RU" },
-  "Singapore": { lat: 1.3521, lon: 103.8198, country: "SG" },
-  "Tokyo":     { lat: 35.6762, lon: 139.6503, country: "JP" },
-  "Tehran":    { lat: 35.6892, lon: 51.3890, country: "IR" } // Source Hub
-};
+## 2. Geodesic Trajectory Mathematical Model (`GeodesicOrbitCurve`)
+
+```typescript
+class GeodesicOrbitCurve extends THREE.Curve<THREE.Vector3> {
+  r: number; // Globe radius (7.5)
+  v1: THREE.Vector3; // Unit vector for origin (Host Egress)
+  v2: THREE.Vector3; // Unit vector for destination (Proxy Exit)
+  axis: THREE.Vector3; // Perpendicular rotation axis: normalize(v1 x v2)
+  theta: number; // Angular separation: acos(clamp(v1 . v2, -1, 1))
+  maxAlt: number; // Peak elevation: 0.55 + theta * 0.65
+
+  getPoint(t: number, target: THREE.Vector3): THREE.Vector3;
+}
 ```
+**Formula Guarantee**:  
+At any parameter $t \in [0, 1]$:
+$$\mathbf{u}(t) = \text{applyAxisAngle}(\mathbf{v}_1, \mathbf{axis}, t \cdot \theta)$$
+$$R(t) = r + \sin(t \cdot \pi) \cdot \text{maxAlt}$$
+$$\mathbf{P}(t) = \mathbf{u}(t) \cdot R(t)$$
+Since $R(t) \ge r$ for all $t$, the curve strictly vaults above the spherical surface of the globe.
+
+---
+
+## 3. Dynamic Country & Flag Registry
+- **Universal Emoji Flag Generation**: Derived dynamically via Unicode regional indicator math:
+  `String.fromCodePoint(127397 + c0, 127397 + c1)` for all 249 ISO 3166-1 alpha-2 codes.
+- **65+ Country Capital/Tech-Hub Geocoordinates**: Comprehensive fallback dictionary mapping ISO codes to exact coordinates (Frankfurt, Amsterdam, Ashburn, Montreal, Tokyo, Sydney, Zurich, etc.).
+- **Deterministic Hash Spatial Fallback**: For any uncharted ISO code, coordinates are generated via character hash ensuring no country collides onto Germany.
