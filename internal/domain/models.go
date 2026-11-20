@@ -141,16 +141,18 @@ type ProbeResult struct {
 
 // IPEnrichment holds intelligence data returned from ipwho.is, ipleak.net, or Cloudflare.
 type IPEnrichment struct {
-	ExitIP         string `json:"exit_ip"`
-	CountryCode    string `json:"country_code"`
-	CountryName    string `json:"country_name"`
-	City           string `json:"city,omitempty"`
-	ISP            string `json:"isp"`
-	ASN            string `json:"asn"`
-	Org            string `json:"org,omitempty"`
-	ConnectionType string `json:"connection_type,omitempty"` // "Residential", "Data Center", "Business", "Wireless", "Unknown"
-	QueryTimeMs    int64  `json:"query_time_ms"`
-	Success        bool   `json:"success"`
+	ExitIP         string  `json:"exit_ip"`
+	CountryCode    string  `json:"country_code"`
+	CountryName    string  `json:"country_name"`
+	City           string  `json:"city,omitempty"`
+	ISP            string  `json:"isp"`
+	ASN            string  `json:"asn"`
+	Org            string  `json:"org,omitempty"`
+	ConnectionType string  `json:"connection_type,omitempty"` // "Residential", "Data Center", "Business", "Wireless", "Unknown"
+	Latitude       float64 `json:"latitude,omitempty"`
+	Longitude      float64 `json:"longitude,omitempty"`
+	QueryTimeMs    int64   `json:"query_time_ms"`
+	Success        bool    `json:"success"`
 }
 
 type EvaluationState string

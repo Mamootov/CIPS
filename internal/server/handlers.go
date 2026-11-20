@@ -24,15 +24,33 @@ type ServerContext struct {
 	orchestrator *pipeline.Orchestrator
 	broadcaster  *SSEBroadcaster
 	lastSession  *domain.ScanSessionStats
+	origin       domain.IPEnrichment
 }
 
-// NewServerContext initializes state.
+// NewServerContext initializes state and asynchronously discovers host egress origin.
 func NewServerContext(orch *pipeline.Orchestrator, bc *SSEBroadcaster) *ServerContext {
-	return &ServerContext{
+	sc := &ServerContext{
 		reports:      make(map[string]*domain.ProxyEvaluationReport),
 		orchestrator: orch,
 		broadcaster:  bc,
+		origin: domain.IPEnrichment{
+			CountryCode: "IR",
+			CountryName: "Iran",
+			City:        "Tehran",
+			Latitude:    35.6892,
+			Longitude:   51.3890,
+			Success:     true,
+		},
 	}
+
+	go func() {
+		detected := probe.DetectHostOrigin(context.Background())
+		sc.mu.Lock()
+		sc.origin = detected
+		sc.mu.Unlock()
+	}()
+
+	return sc
 }
 
 // UpdateReport safely updates a single evaluation report in real-time.
@@ -249,7 +267,18 @@ func (sc *ServerContext) HandleSessionState(w http.ResponseWriter, r *http.Reque
 		"reports":    reportsList,
 		"total":      len(sc.candidates),
 		"is_running": sc.orchestrator.IsRunning(),
+		"origin":     sc.origin,
 	})
+}
+
+// HandleOrigin returns the detected direct egress IP and location of the host running CIPS.
+func (sc *ServerContext) HandleOrigin(w http.ResponseWriter, r *http.Request) {
+	sc.mu.RLock()
+	orig := sc.origin
+	sc.mu.RUnlock()
+
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(orig)
 }
 
 // HandleReset clears all loaded candidates and reports from memory.

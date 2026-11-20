@@ -28,6 +28,7 @@ func NewServer(orch *pipeline.Orchestrator, webFS fs.FS) *Server {
 	mux := http.NewServeMux()
 
 	// API Routes
+	mux.HandleFunc("/api/origin", sc.HandleOrigin)
 	mux.HandleFunc("/api/ingest", sc.HandleIngest)
 	mux.HandleFunc("/api/scan/start", sc.HandleScanStart)
 	mux.HandleFunc("/api/scan/cancel", sc.HandleScanCancel)

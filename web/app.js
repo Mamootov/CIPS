@@ -2,6 +2,48 @@
 // CIPS Cockpit Application Controller — Multi-View Telemetry & 3D Engine
 // ==========================================================================
 
+// ==========================================================================
+// Geodesic Great-Circle Orbit Curve (Guaranteed to stay strictly above Earth surface)
+// ==========================================================================
+class GeodesicOrbitCurve extends THREE.Curve {
+  constructor(p1, p2, globeRadius) {
+    super();
+    this.r = globeRadius || 7.5;
+    this.v1 = p1.clone().normalize();
+    this.v2 = p2.clone().normalize();
+
+    // Cross product to find true perpendicular axis of great circle rotation
+    let axis = new THREE.Vector3().crossVectors(this.v1, this.v2);
+    if (axis.lengthSq() < 1e-6) {
+      // Points are parallel or antipodal (opposite side of planet)
+      axis = Math.abs(this.v1.x) < 0.8 ? new THREE.Vector3(1, 0, 0) : new THREE.Vector3(0, 1, 0);
+      axis.cross(this.v1).normalize();
+    } else {
+      axis.normalize();
+    }
+    this.axis = axis;
+
+    const dot = Math.max(-1, Math.min(1, this.v1.dot(this.v2)));
+    this.theta = Math.acos(dot);
+    // Smooth apex elevation based on angular separation (higher flight path for opposite hemisphere)
+    this.maxAlt = 0.55 + this.theta * 0.65;
+  }
+
+  getPoint(t, optionalTarget = new THREE.Vector3()) {
+    if (this.theta < 0.001) {
+      return optionalTarget.copy(this.v1).multiplyScalar(this.r);
+    }
+    // Rotate v1 around great-circle axis by angle (t * theta)
+    const angle = t * this.theta;
+    optionalTarget.copy(this.v1).applyAxisAngle(this.axis, angle).normalize();
+
+    // Radius is strictly >= this.r at all points; never cuts into Earth interior!
+    const alt = Math.sin(t * Math.PI) * this.maxAlt;
+    optionalTarget.multiplyScalar(this.r + alt);
+    return optionalTarget;
+  }
+}
+
 const Cockpit = {
   // State
   state: {
@@ -20,23 +62,102 @@ const Cockpit = {
     speedtestEnabled: true,
     speedtestSizeMb: 3,
     scanRunning: false,
-    selectedNodeId: null
+    selectedNodeId: null,
+    origin: {
+      ip: '127.0.0.1',
+      country_code: 'IR',
+      country_name: 'Iran',
+      city: 'Tehran',
+      latitude: 35.6892,
+      longitude: 51.3890,
+      flag: '🇮🇷'
+    }
   },
 
-  // Geographic Registry for fallback coordinates
+  // Geographic Registry for fallback coordinates across 65+ key proxy regions
   countryGeoDefaults: {
     "DE": { lat: 50.1109, lon: 8.6821, city: "Frankfurt", name: "Germany", flag: "🇩🇪" },
     "NL": { lat: 52.3676, lon: 4.9041, city: "Amsterdam", name: "Netherlands", flag: "🇳🇱" },
-    "US": { lat: 40.7128, lon: -74.0060, city: "New York", name: "United States", flag: "🇺🇸" },
-    "FI": { lat: 60.1699, lon: 24.9384, city: "Helsinki", name: "Finland", flag: "🇫🇮" },
-    "RU": { lat: 55.7558, lon: 37.6173, city: "Moscow", name: "Russia", flag: "🇷🇺" },
+    "US": { lat: 38.9072, lon: -77.0369, city: "Washington / Ashburn", name: "United States", flag: "🇺🇸" },
     "GB": { lat: 51.5074, lon: -0.1278, city: "London", name: "United Kingdom", flag: "🇬🇧" },
     "FR": { lat: 48.8566, lon: 2.3522, city: "Paris", name: "France", flag: "🇫🇷" },
+    "CA": { lat: 45.5017, lon: -73.5673, city: "Montreal", name: "Canada", flag: "🇨🇦" },
+    "FI": { lat: 60.1699, lon: 24.9384, city: "Helsinki", name: "Finland", flag: "🇫🇮" },
+    "SE": { lat: 59.3293, lon: 18.0686, city: "Stockholm", name: "Sweden", flag: "🇸🇪" },
+    "NO": { lat: 59.9139, lon: 10.7522, city: "Oslo", name: "Norway", flag: "🇳🇴" },
+    "DK": { lat: 55.6761, lon: 12.5683, city: "Copenhagen", name: "Denmark", flag: "🇩🇰" },
+    "CH": { lat: 47.3769, lon: 8.5417, city: "Zurich", name: "Switzerland", flag: "🇨🇭" },
+    "AT": { lat: 48.2082, lon: 16.3738, city: "Vienna", name: "Austria", flag: "🇦🇹" },
+    "PL": { lat: 52.2297, lon: 21.0122, city: "Warsaw", name: "Poland", flag: "🇵🇱" },
+    "CZ": { lat: 50.0755, lon: 14.4378, city: "Prague", name: "Czechia", flag: "🇨🇿" },
+    "IT": { lat: 45.4642, lon: 9.1900, city: "Milan", name: "Italy", flag: "🇮🇹" },
+    "ES": { lat: 40.4168, lon: -3.7038, city: "Madrid", name: "Spain", flag: "🇪🇸" },
+    "PT": { lat: 38.7223, lon: -9.1393, city: "Lisbon", name: "Portugal", flag: "🇵🇹" },
+    "IE": { lat: 53.3498, lon: -6.2603, city: "Dublin", name: "Ireland", flag: "🇮🇪" },
+    "BE": { lat: 50.8503, lon: 4.3517, city: "Brussels", name: "Belgium", flag: "🇧🇪" },
+    "RO": { lat: 44.4268, lon: 26.1025, city: "Bucharest", name: "Romania", flag: "🇷🇴" },
+    "BG": { lat: 42.6977, lon: 23.3219, city: "Sofia", name: "Bulgaria", flag: "🇧🇬" },
+    "GR": { lat: 37.9838, lon: 23.7275, city: "Athens", name: "Greece", flag: "🇬🇷" },
+    "UA": { lat: 50.4501, lon: 30.5234, city: "Kyiv", name: "Ukraine", flag: "🇺🇦" },
+    "RU": { lat: 55.7558, lon: 37.6173, city: "Moscow", name: "Russia", flag: "🇷🇺" },
+    "TR": { lat: 41.0082, lon: 28.9784, city: "Istanbul", name: "Turkey", flag: "🇹🇷" },
     "SG": { lat: 1.3521, lon: 103.8198, city: "Singapore", name: "Singapore", flag: "🇸🇬" },
     "JP": { lat: 35.6762, lon: 139.6503, city: "Tokyo", name: "Japan", flag: "🇯🇵" },
-    "TR": { lat: 41.0082, lon: 28.9784, city: "Istanbul", name: "Turkey", flag: "🇹🇷" },
+    "KR": { lat: 37.5665, lon: 126.9780, city: "Seoul", name: "South Korea", flag: "🇰🇷" },
+    "HK": { lat: 22.3193, lon: 114.1694, city: "Hong Kong", name: "Hong Kong", flag: "🇭🇰" },
+    "TW": { lat: 25.0330, lon: 121.5654, city: "Taipei", name: "Taiwan", flag: "🇹🇼" },
+    "IN": { lat: 19.0760, lon: 72.8777, city: "Mumbai", name: "India", flag: "🇮🇳" },
+    "MY": { lat: 3.1390, lon: 101.6869, city: "Kuala Lumpur", name: "Malaysia", flag: "🇲🇾" },
+    "TH": { lat: 13.7563, lon: 100.5018, city: "Bangkok", name: "Thailand", flag: "🇹🇭" },
+    "VN": { lat: 21.0285, lon: 105.8542, city: "Hanoi", name: "Vietnam", flag: "🇻🇳" },
+    "ID": { lat: -6.2088, lon: 106.8456, city: "Jakarta", name: "Indonesia", flag: "🇮🇩" },
+    "AU": { lat: -33.8688, lon: 151.2093, city: "Sydney", name: "Australia", flag: "🇦🇺" },
+    "NZ": { lat: -36.8485, lon: 174.7633, city: "Auckland", name: "New Zealand", flag: "🇳🇿" },
     "AE": { lat: 25.2048, lon: 55.2708, city: "Dubai", name: "UAE", flag: "🇦🇪" },
+    "IL": { lat: 32.0853, lon: 34.7818, city: "Tel Aviv", name: "Israel", flag: "🇮🇱" },
+    "SA": { lat: 24.7136, lon: 46.6753, city: "Riyadh", name: "Saudi Arabia", flag: "🇸🇦" },
+    "AM": { lat: 40.1792, lon: 44.4991, city: "Yerevan", name: "Armenia", flag: "🇦🇲" },
+    "GE": { lat: 41.7151, lon: 44.8271, city: "Tbilisi", name: "Georgia", flag: "🇬🇪" },
+    "AZ": { lat: 40.4093, lon: 49.8671, city: "Baku", name: "Azerbaijan", flag: "🇦🇿" },
+    "KZ": { lat: 43.2389, lon: 76.8897, city: "Almaty", name: "Kazakhstan", flag: "🇰🇿" },
+    "UZ": { lat: 41.2995, lon: 69.2401, city: "Tashkent", name: "Uzbekistan", flag: "🇺🇿" },
+    "BR": { lat: -23.5505, lon: -46.6333, city: "Sao Paulo", name: "Brazil", flag: "🇧🇷" },
+    "AR": { lat: -34.6037, lon: -58.3816, city: "Buenos Aires", name: "Argentina", flag: "🇦🇷" },
+    "CL": { lat: -33.4489, lon: -70.6693, city: "Santiago", name: "Chile", flag: "🇨🇱" },
+    "MX": { lat: 19.4326, lon: -99.1332, city: "Mexico City", name: "Mexico", flag: "🇲🇽" },
+    "ZA": { lat: -26.2041, lon: 28.0473, city: "Johannesburg", name: "South Africa", flag: "🇿🇦" },
+    "EG": { lat: 30.0444, lon: 31.2357, city: "Cairo", name: "Egypt", flag: "🇪🇬" },
+    "EE": { lat: 59.4370, lon: 24.7535, city: "Tallinn", name: "Estonia", flag: "🇪🇪" },
+    "LV": { lat: 56.9496, lon: 24.1052, city: "Riga", name: "Latvia", flag: "🇱🇻" },
+    "LT": { lat: 54.6872, lon: 25.2797, city: "Vilnius", name: "Lithuania", flag: "🇱🇹" },
+    "HU": { lat: 47.4979, lon: 19.0402, city: "Budapest", name: "Hungary", flag: "🇭🇺" },
+    "SK": { lat: 48.1486, lon: 17.1077, city: "Bratislava", name: "Slovakia", flag: "🇸🇰" },
+    "SI": { lat: 46.0569, lon: 14.5058, city: "Ljubljana", name: "Slovenia", flag: "🇸🇮" },
+    "HR": { lat: 45.8150, lon: 15.9819, city: "Zagreb", name: "Croatia", flag: "🇭🇷" },
+    "CY": { lat: 35.1856, lon: 33.3823, city: "Nicosia", name: "Cyprus", flag: "🇨🇾" },
+    "LU": { lat: 49.6116, lon: 6.1319, city: "Luxembourg", name: "Luxembourg", flag: "🇱🇺" },
+    "IS": { lat: 64.1466, lon: -21.9426, city: "Reykjavik", name: "Iceland", flag: "🇮🇸" },
     "IR": { lat: 35.6892, lon: 51.3890, city: "Tehran", name: "Iran", flag: "🇮🇷" } // Source Hub
+  },
+
+  getCountryFallback(cc) {
+    if (!cc) return { lat: 50.1109, lon: 8.6821, city: "Unknown Hub", name: "Unknown", flag: "🌐" };
+    const upper = cc.toUpperCase();
+    if (this.countryGeoDefaults[upper]) {
+      return this.countryGeoDefaults[upper];
+    }
+    // Deterministic spread coordinates based on country code characters
+    const c0 = upper.charCodeAt(0) || 65;
+    const c1 = upper.charCodeAt(1) || 66;
+    const lat = 20.0 + ((c0 * 7 + c1 * 13) % 40);
+    const lon = -60.0 + ((c0 * 19 + c1 * 23) % 180);
+    return {
+      lat,
+      lon,
+      city: `${upper} Hub`,
+      name: upper,
+      flag: this.getCountryFlag(upper)
+    };
   },
 
   // 3D Three.js Globe References
@@ -50,7 +171,7 @@ const Cockpit = {
     globeRadius: 7.5,
     activeArc: null,
     activeGlowTube: null,
-    packetMeshes: [],
+    packetObjects: [],
     nodeMeshes: []
   },
 
@@ -249,6 +370,7 @@ const Cockpit = {
     this.init2DTrafficMap();
     this.connectSSE();
     this.hydrateSession();
+    this.updateProbeStudioDisplays();
 
     // Check URL hash for initial tab (e.g. #map)
     const initialHash = window.location.hash.replace('#', '');
@@ -267,6 +389,20 @@ const Cockpit = {
         }
       }
     });
+  },
+
+  updateProbeStudioDisplays() {
+    const tMs = this.state.stage2Timeout || 8000;
+    const formatted = `${tMs.toLocaleString()} ms`;
+    ['gemini', 'aistudio', 'chatgpt', 'claude'].forEach(p => {
+      const el = document.getElementById(`probe-timeout-${p}`);
+      if (el) el.textContent = formatted;
+    });
+
+    const capEl = document.getElementById('probe-speed-cap');
+    if (capEl) {
+      capEl.textContent = `${this.state.speedtestSizeMb || 3} MB (3s Limit)`;
+    }
   },
 
   // 1. Tab Router
@@ -393,12 +529,14 @@ const Cockpit = {
       p2Slider.addEventListener('input', (e) => {
         if (p2Val) p2Val.textContent = `${e.target.value} ms`;
         this.state.stage2Timeout = parseInt(e.target.value, 10);
+        this.updateProbeStudioDisplays();
       });
     }
     if (speedSlider) {
       speedSlider.addEventListener('input', (e) => {
         if (speedVal) speedVal.textContent = `${e.target.value} MB`;
         this.state.speedtestSizeMb = parseInt(e.target.value, 10);
+        this.updateProbeStudioDisplays();
       });
     }
     if (saveSettingsBtn) {
@@ -418,6 +556,7 @@ const Cockpit = {
       const data = await res.json();
       document.getElementById('ingest-modal').classList.remove('open');
       this.hydrateSession();
+    this.updateProbeStudioDisplays();
     } catch (e) {
       console.error('Ingest failed:', e);
     }
@@ -495,6 +634,7 @@ const Cockpit = {
           this.state.reports.clear();
           this.state.selectedNodeId = null;
           this.hydrateSession();
+    this.updateProbeStudioDisplays();
         }
       });
     }
@@ -624,6 +764,18 @@ const Cockpit = {
       const res = await fetch('/api/session');
       const data = await res.json();
 
+      if (data.origin && data.origin.country_code) {
+        this.state.origin = {
+          ip: data.origin.exit_ip || data.origin.ip || '127.0.0.1',
+          country_code: data.origin.country_code,
+          country_name: data.origin.country_name || 'Origin',
+          city: data.origin.city || data.origin.country_name || 'Origin Hub',
+          latitude: data.origin.latitude || 35.6892,
+          longitude: data.origin.longitude || 51.3890,
+          flag: this.getCountryFlag(data.origin.country_code)
+        };
+      }
+
       if (data.reports) {
         data.reports.forEach(r => {
           this.state.reports.set(r.config.id, r);
@@ -743,20 +895,64 @@ const Cockpit = {
       document.getElementById('bar-seg-fail').style.width = `${(fail / total) * 100}%`;
     }
 
-    document.getElementById('legend-clean').textContent = `● ${clean} Clean`;
+    document.getElementById('legend-clean').textContent = `● ${clean} Available`;
     document.getElementById('legend-geo').textContent = `● ${geo} Geo`;
     document.getElementById('legend-rate').textContent = `● ${rate} Rate`;
     document.getElementById('legend-fail').textContent = `● ${fail} Fail`;
 
-    document.getElementById('filter-all-cnt').textContent = total;
-    document.getElementById('filter-clean-cnt').textContent = clean;
-    document.getElementById('filter-geo-cnt').textContent = geo;
-    document.getElementById('filter-error-cnt').textContent = fail;
-    document.getElementById('dock-clean-count').textContent = clean;
-    document.getElementById('preset-clean-count').textContent = `${clean} Nodes`;
+    if (document.getElementById('filter-all-cnt')) document.getElementById('filter-all-cnt').textContent = total;
+    if (document.getElementById('filter-clean-cnt')) document.getElementById('filter-clean-cnt').textContent = clean;
+    if (document.getElementById('filter-geo-cnt')) document.getElementById('filter-geo-cnt').textContent = geo;
+    if (document.getElementById('filter-error-cnt')) document.getElementById('filter-error-cnt').textContent = fail;
+    if (document.getElementById('dock-clean-count')) document.getElementById('dock-clean-count').textContent = clean;
+    if (document.getElementById('preset-clean-count')) document.getElementById('preset-clean-count').textContent = `${clean} Nodes`;
 
-    // Dynamic Globe Filter Pills Update
+    // Dynamic Globe & Dashboard Filter Pills Update
     this.updateGlobeFilterPills();
+    this.updateDashboardFilterPills();
+  },
+
+  // DYNAMIC FILTER PILLS ON DASHBOARD (NO HARDCODING)
+  updateDashboardFilterPills() {
+    const countryContainer = document.getElementById('dynamic-country-pills');
+    const divider = document.getElementById('filter-country-divider');
+    const resPill = document.getElementById('filter-res-pill');
+    const resCnt = document.getElementById('filter-res-cnt');
+    if (!countryContainer) return;
+
+    const countryCounts = new Map();
+    let resCount = 0;
+    this.state.reports.forEach(r => {
+      const cc = r.ip_info?.country_code;
+      if (cc) {
+        countryCounts.set(cc, (countryCounts.get(cc) || 0) + 1);
+      }
+      if (r.ip_info?.connection_type === 'Residential') resCount++;
+    });
+
+    if (resPill && resCnt) {
+      if (resCount > 0) {
+        resPill.style.display = 'inline-flex';
+        resCnt.textContent = resCount;
+      } else {
+        resPill.style.display = 'none';
+      }
+    }
+
+    if (countryCounts.size > 0 && divider) {
+      divider.style.display = 'block';
+    } else if (divider) {
+      divider.style.display = 'none';
+    }
+
+    let pillsHtml = '';
+    countryCounts.forEach((count, cc) => {
+      const geo = this.countryGeoDefaults[cc] || { name: cc, flag: '🌐' };
+      const isActive = this.state.filter.country === cc;
+      pillsHtml += `<button class="pill ${isActive ? 'active' : ''}" data-filter-country="${cc}">${geo.flag} ${geo.name} (${count})</button>`;
+    });
+
+    countryContainer.innerHTML = pillsHtml;
   },
 
   // DYNAMIC FILTER PILLS ON GLOBE (NO HARDCODING)
@@ -777,7 +973,7 @@ const Cockpit = {
 
     let html = `
       <button class="filter-pill ${this.state.globeFilter === 'all' ? 'active' : ''}" data-globe-filter="all">All (${this.state.reports.size})</button>
-      <button class="filter-pill ${this.state.globeFilter === 'clean' ? 'active' : ''}" data-globe-filter="clean">🌟 AI Clean</button>
+      <button class="filter-pill ${this.state.globeFilter === 'clean' ? 'active' : ''}" data-globe-filter="clean">🌟 Available</button>
     `;
 
     countryCounts.forEach((count, cc) => {
@@ -834,18 +1030,55 @@ const Cockpit = {
     }
     if (empty) empty.style.display = 'none';
 
-    const filtered = reports.filter(r => {
-      if (this.state.filter.status === 'clean' && !r.is_clean) return false;
-      if (this.state.filter.country && r.ip_info?.country_code !== this.state.filter.country) return false;
-      if (this.state.filter.residentialOnly && r.ip_info?.connection_type !== 'Residential') return false;
+    let filtered = reports.filter(r => {
+      // 1. Status Filter
+      if (this.state.filter.status === 'clean' || this.state.filter.status === 'available') {
+        if (!r.is_clean) return false;
+      } else if (this.state.filter.status === 'geo') {
+        let hasGeo = false;
+        if (r.probe_results) {
+          for (const pr of Object.values(r.probe_results)) {
+            if (pr.diagnostic?.interception_type === 'GEO_RESTRICTED') {
+              hasGeo = true;
+              break;
+            }
+          }
+        }
+        if (!hasGeo) return false;
+      } else if (this.state.filter.status === 'error') {
+        let isGeo = false;
+        if (r.probe_results) {
+          for (const pr of Object.values(r.probe_results)) {
+            if (pr.diagnostic?.interception_type === 'GEO_RESTRICTED') {
+              isGeo = true;
+              break;
+            }
+          }
+        }
+        if (isGeo || r.is_clean || (r.state !== 'COMPLETE' && r.state !== 'STAGE1_DEAD')) return false;
+      } else if (this.state.filter.status === 'residential') {
+        if (r.ip_info?.connection_type !== 'Residential') return false;
+      }
 
+      // 2. Country Filter
+      if (this.state.filter.country) {
+        if (r.ip_info?.country_code !== this.state.filter.country) return false;
+      }
+
+      // 3. Search query
       if (this.state.filter.searchQuery) {
         const q = this.state.filter.searchQuery;
-        const text = `${r.config.remark} ${r.config.server} ${r.ip_info?.isp || ''} ${r.ip_info?.exit_ip || ''}`.toLowerCase();
+        const text = `${r.config.remark} ${r.config.server} ${r.ip_info?.isp || ''} ${r.ip_info?.city || ''} ${r.ip_info?.country_name || ''} ${r.ip_info?.exit_ip || ''}`.toLowerCase();
         if (!text.includes(q)) return false;
       }
       return true;
     });
+
+    // 4. SORT BY SPEED:
+    // When filtering by available/clean, automatically sort descending by speed!
+    if (this.state.filter.status === 'clean' || this.state.filter.status === 'available') {
+      filtered.sort((a, b) => (b.download_speed_mbps || 0) - (a.download_speed_mbps || 0));
+    }
 
     tbody.innerHTML = filtered.map((r, idx) => this.generateRowHTML(r, idx + 1)).join('');
   },
@@ -884,7 +1117,7 @@ const Cockpit = {
         <td>
           <div class="node-cell">
             <span class="node-remark">${r.config.remark || r.config.server}</span>
-            <span class="route-corridor">🇮🇷 Tehrān <span class="corridor-arrow">──────▶</span> ${destText}</span>
+            <span class="route-corridor">${this.state.origin.flag} ${this.state.origin.city} <span class="corridor-arrow">──────▶</span> ${destText}</span>
           </div>
         </td>
         <td><span class="proto-tag ${protoClass}">${(r.config.protocol || 'VLESS').toUpperCase()}</span></td>
@@ -906,7 +1139,7 @@ const Cockpit = {
     
     let statusText = '<span style="color:var(--text-muted)">⏳ Queued</span>';
     if (r.is_clean) {
-      statusText = '<span class="clean-star">🌟 AI Clean</span>';
+      statusText = '<span class="clean-star">🌟 Available</span>';
     } else if (r.state === 'COMPLETE') {
       statusText = '<span style="color:var(--rose-error)">✗ Blocked / Err</span>';
     } else if (r.state === 'STAGE1_DEAD') {
@@ -963,8 +1196,13 @@ const Cockpit = {
   },
 
   getCountryFlag(code) {
-    const flags = { "DE": "🇩🇪", "NL": "🇳🇱", "US": "🇺🇸", "FI": "🇫🇮", "RU": "🇷🇺", "GB": "🇬🇧", "FR": "🇫🇷", "SG": "🇸🇬", "JP": "🇯🇵", "TR": "🇹🇷", "AE": "🇦🇪", "IR": "🇮🇷" };
-    return flags[code] || "🌐";
+    if (!code || typeof code !== 'string' || code.length !== 2) return "🌐";
+    try {
+      const upper = code.toUpperCase();
+      return String.fromCodePoint(127397 + upper.charCodeAt(0), 127397 + upper.charCodeAt(1));
+    } catch (e) {
+      return "🌐";
+    }
   },
 
   updateRow(report) {
@@ -1049,12 +1287,31 @@ const Cockpit = {
     this.globe3D = {
       initialized: true,
       scene, camera, renderer, controls, globeGroup, globeRadius,
-      activeArc: null, activeGlowTube: null, packetMeshes: [], nodeMeshes: []
+      activeArc: null, activeGlowTube: null, activeCurve: null,
+      packetObjects: [], nodeMeshes: []
     };
 
     const animate = () => {
       requestAnimationFrame(animate);
       controls.update();
+
+      // CONTINUOUS STREAM OF TINY PURE WHITE PHOTON BEADS
+      const g3d = this.globe3D;
+      if (g3d && g3d.activeCurve && g3d.packetObjects && g3d.packetObjects.length > 0) {
+        const time = performance.now() * 0.001;
+        const speed = 0.38; // Elegant, high-speed optical transit
+        g3d.packetObjects.forEach((pObj) => {
+          const t = ((time * speed) + pObj.offset) % 1.0;
+          const pos = g3d.activeCurve.getPoint(t);
+          pObj.mesh.position.copy(pos);
+
+          // Keep strictly tiny and crisp
+          const fade = Math.sin(t * Math.PI);
+          const scale = 0.85 + fade * 0.3;
+          pObj.mesh.scale.setScalar(scale);
+        });
+      }
+
       renderer.render(scene, camera);
     };
     animate();
@@ -1091,12 +1348,14 @@ const Cockpit = {
     this.globe3D.nodeMeshes.forEach(m => globeGroup.remove(m));
     this.globe3D.nodeMeshes = [];
 
-    // Origin: Tehran (35.6892, 51.3890)
-    const tehranPos = this.latLonToVec3(35.6892, 51.3890, globeRadius);
-    const tehranDot = new THREE.Mesh(new THREE.SphereGeometry(0.08, 16, 16), new THREE.MeshBasicMaterial({ color: 0x10b981 }));
-    tehranDot.position.copy(tehranPos);
-    globeGroup.add(tehranDot);
-    this.globe3D.nodeMeshes.push(tehranDot);
+    // Dynamic Origin Position (Auto-detected Host Egress)
+    const origLat = this.state.origin.latitude || 35.6892;
+    const origLon = this.state.origin.longitude || 51.3890;
+    const originPos = this.latLonToVec3(origLat, origLon, globeRadius);
+    const originDot = new THREE.Mesh(new THREE.SphereGeometry(0.08, 16, 16), new THREE.MeshBasicMaterial({ color: 0x10b981 }));
+    originDot.position.copy(originPos);
+    globeGroup.add(originDot);
+    this.globe3D.nodeMeshes.push(originDot);
 
     // Filter reports based on active globe filter
     const reports = Array.from(this.state.reports.values()).filter(r => {
@@ -1113,10 +1372,21 @@ const Cockpit = {
     reports.forEach(r => {
       let lat = r.ip_info?.latitude;
       let lon = r.ip_info?.longitude;
-      const cc = r.ip_info?.country_code || 'DE';
+      let cc = r.ip_info?.country_code;
+
+      if (!cc && r.config?.remark) {
+        const rem = r.config.remark.toUpperCase();
+        for (const code of Object.keys(this.countryGeoDefaults)) {
+          if (rem.includes(code)) {
+            cc = code;
+            break;
+          }
+        }
+      }
+      if (!cc) cc = 'DE';
 
       if (!lat || !lon) {
-        const def = this.countryGeoDefaults[cc] || this.countryGeoDefaults['DE'];
+        const def = this.getCountryFallback(cc);
         lat = def.lat;
         lon = def.lon;
       }
@@ -1169,8 +1439,22 @@ const Cockpit = {
       });
     });
 
+    if (!selectedReport && reports.length > 0) {
+      selectedReport = reports.find(r => r.is_clean) || reports[0];
+      this.state.selectedNodeId = selectedReport.config.id;
+      let lat = selectedReport.ip_info?.latitude;
+      let lon = selectedReport.ip_info?.longitude;
+      const cc = selectedReport.ip_info?.country_code || 'DE';
+      if (!lat || !lon) {
+        const def = this.getCountryFallback(cc);
+      lat = def.lat;
+      lon = def.lon;
+      }
+      selectedPos = this.latLonToVec3(lat, lon, globeRadius);
+    }
+
     if (selectedReport && selectedPos) {
-      this.activateSingleCorridorArc(tehranPos, selectedPos, selectedReport);
+      this.activateSingleCorridorArc(originPos, selectedPos, selectedReport);
     }
 
     this.updateClusterCard(reports);
@@ -1210,23 +1494,39 @@ const Cockpit = {
     this.syncGlobeNodes();
   },
 
-  // 12. Dynamic Spectrum Arc Controller
+  // 12. Dynamic Spectrum Arc Controller (Continuous Fiber-Optic Light Flow)
   activateSingleCorridorArc(p1, p2, report) {
     const { globeGroup } = this.globe3D;
+    const globeRadius = this.globe3D.globeRadius || 7.5;
 
-    if (this.globe3D.activeArc) globeGroup.remove(this.globe3D.activeArc);
-    if (this.globe3D.activeGlowTube) globeGroup.remove(this.globe3D.activeGlowTube);
-    this.globe3D.packetMeshes.forEach(p => globeGroup.remove(p));
-    this.globe3D.packetMeshes = [];
+    // Clean up previous arc, glow tube, and photon beads
+    if (this.globe3D.activeArc) {
+      globeGroup.remove(this.globe3D.activeArc);
+      if (this.globe3D.activeArc.geometry) this.globe3D.activeArc.geometry.dispose();
+      this.globe3D.activeArc = null;
+    }
+    if (this.globe3D.activeGlowTube) {
+      globeGroup.remove(this.globe3D.activeGlowTube);
+      if (this.globe3D.activeGlowTube.geometry) this.globe3D.activeGlowTube.geometry.dispose();
+      this.globe3D.activeGlowTube = null;
+    }
+    if (this.globe3D.packetObjects) {
+      this.globe3D.packetObjects.forEach(p => {
+        if (p.mesh) {
+          globeGroup.remove(p.mesh);
+          if (p.mesh.geometry) p.mesh.geometry.dispose();
+          if (p.mesh.material) p.mesh.material.dispose();
+        }
+        if (p.group) globeGroup.remove(p.group);
+      });
+    }
+    this.globe3D.packetObjects = [];
 
-    const dist = p1.distanceTo(p2);
-    const mid = p1.clone().lerp(p2, 0.5);
-    const midLen = mid.length();
-    mid.normalize();
-    mid.multiplyScalar(midLen + dist * 0.28);
+    // Geodesic Great-Circle Curve: Sweeps smoothly over spherical surface, NEVER cuts into interior!
+    const curve = new GeodesicOrbitCurve(p1, p2, globeRadius);
+    this.globe3D.activeCurve = curve;
 
-    const curve = new THREE.QuadraticBezierCurve3(p1, mid, p2);
-    const points = curve.getPoints(60);
+    const points = curve.getPoints(80);
 
     // Spectrum Gradient
     const colors = [];
@@ -1252,23 +1552,31 @@ const Cockpit = {
     globeGroup.add(arcLine);
     this.globe3D.activeArc = arcLine;
 
+    // Glowing Fiber Tube
     const glowTube = new THREE.Mesh(
-      new THREE.TubeGeometry(curve, 50, 0.04, 8, false),
-      new THREE.MeshBasicMaterial({ color: 0xa855f7, transparent: true, opacity: 0.35 })
+      new THREE.TubeGeometry(curve, 80, 0.035, 12, false),
+      new THREE.MeshBasicMaterial({ color: 0x38bdf8, transparent: true, opacity: 0.22 })
     );
     globeGroup.add(glowTube);
     this.globe3D.activeGlowTube = glowTube;
 
-    [0.18, 0.42, 0.65, 0.88].forEach((t, idx) => {
-      const pt = curve.getPoint(t);
-      const pMesh = new THREE.Mesh(
-        new THREE.SphereGeometry(0.07, 12, 12),
-        new THREE.MeshBasicMaterial({ color: idx % 2 === 0 ? 0xffffff : 0xfbcfe8 })
+    // 8 Tiny, Pure White Laser Photons (Strictly small, pure white, NO colored halo)
+    const packetCount = 8;
+    for (let i = 0; i < packetCount; i++) {
+      const bead = new THREE.Mesh(
+        new THREE.SphereGeometry(0.045, 12, 12),
+        new THREE.MeshBasicMaterial({ color: 0xffffff })
       );
-      pMesh.position.copy(pt);
-      globeGroup.add(pMesh);
-      this.globe3D.packetMeshes.push(pMesh);
-    });
+
+      const initialPos = curve.getPoint(i / packetCount);
+      bead.position.copy(initialPos);
+      globeGroup.add(bead);
+
+      this.globe3D.packetObjects.push({
+        mesh: bead,
+        offset: i / packetCount
+      });
+    }
 
     this.updateInspectorCard(report);
     // MIRROR THIS EXACT SELECTED NODE ONTO THE 2D TRAFFIC MAP!
@@ -1281,7 +1589,7 @@ const Cockpit = {
     const city = r.ip_info?.city || r.ip_info?.country_name || 'Destination';
 
     document.getElementById('inspect-node-title').textContent = r.config.remark || r.config.server;
-    document.getElementById('inspect-node-dest').textContent = `${flag} ${city}`;
+    document.getElementById('inspect-node-dest').textContent = `${this.state.origin.flag} ${this.state.origin.city} ──────> ${flag} ${city}`;
     document.getElementById('inspect-geo').textContent = `${flag} ${city} (${r.ip_info?.latitude?.toFixed(2) || '50.11'}° N, ${r.ip_info?.longitude?.toFixed(2) || '8.68'}° E)`;
     document.getElementById('inspect-jitter').textContent = `Node in ${city} Cluster`;
     document.getElementById('inspect-proto').textContent = `${(r.config.protocol || 'VLESS').toUpperCase()} :${r.config.port}`;
@@ -1325,9 +1633,11 @@ const Cockpit = {
     const linesG = document.getElementById('traffic-corridor-lines');
     if (!linesG) return;
 
-    // Origin: Tehran (35.6892, 51.3890) -> (x: 218.5, y: 48.3)
-    const originX = 218.5;
-    const originY = 48.3;
+    // Dynamic Host Origin Projection
+    const origLat = this.state.origin.latitude || 35.6892;
+    const origLon = this.state.origin.longitude || 51.3890;
+    const originX = ((origLon + 180) / 360) * 340;
+    const originY = ((90 - origLat) / 180) * 160;
 
     let destLat = report?.ip_info?.latitude;
     let destLon = report?.ip_info?.longitude;
@@ -1370,4 +1680,5 @@ const Cockpit = {
   }
 };
 
+window.Cockpit = Cockpit;
 window.addEventListener('DOMContentLoaded', () => Cockpit.init());

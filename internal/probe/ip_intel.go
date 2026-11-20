@@ -149,15 +149,17 @@ func queryIPAPI(ctx context.Context, client tls_client.HttpClient) (domain.IPEnr
 	}
 
 	var data struct {
-		Status      string `json:"status"`
-		Country     string `json:"country"`
-		CountryCode string `json:"countryCode"`
-		City        string `json:"city"`
-		ISP         string `json:"isp"`
-		Org         string `json:"org"`
-		AS          string `json:"as"`
-		Query       string `json:"query"`
-		Hosting     bool   `json:"hosting"`
+		Status      string  `json:"status"`
+		Country     string  `json:"country"`
+		CountryCode string  `json:"countryCode"`
+		City        string  `json:"city"`
+		ISP         string  `json:"isp"`
+		Org         string  `json:"org"`
+		AS          string  `json:"as"`
+		Query       string  `json:"query"`
+		Hosting     bool    `json:"hosting"`
+		Lat         float64 `json:"lat"`
+		Lon         float64 `json:"lon"`
 	}
 
 	if err := json.Unmarshal(body, &data); err != nil || data.Status != "success" {
@@ -178,6 +180,8 @@ func queryIPAPI(ctx context.Context, client tls_client.HttpClient) (domain.IPEnr
 		ASN:            data.AS,
 		Org:            data.Org,
 		ConnectionType: connType,
+		Latitude:       data.Lat,
+		Longitude:      data.Lon,
 		Success:        true,
 	}, nil
 }
@@ -208,11 +212,13 @@ func queryIPWhoIs(ctx context.Context, client tls_client.HttpClient) (domain.IPE
 	}
 
 	var data struct {
-		Success     bool   `json:"success"`
-		IP          string `json:"ip"`
-		Country     string `json:"country"`
-		CountryCode string `json:"country_code"`
-		City        string `json:"city"`
+		Success     bool    `json:"success"`
+		IP          string  `json:"ip"`
+		Country     string  `json:"country"`
+		CountryCode string  `json:"country_code"`
+		City        string  `json:"city"`
+		Latitude    float64 `json:"latitude"`
+		Longitude   float64 `json:"longitude"`
 		Connection  struct {
 			ASN  int    `json:"asn"`
 			Org  string `json:"org"`
@@ -244,8 +250,67 @@ func queryIPWhoIs(ctx context.Context, client tls_client.HttpClient) (domain.IPE
 		ASN:            asnStr,
 		Org:            data.Connection.Org,
 		ConnectionType: connType,
+		Latitude:       data.Latitude,
+		Longitude:      data.Longitude,
 		Success:        true,
 	}, nil
+}
+
+// DetectHostOrigin discovers the real direct egress IP and location of the host running CIPS.
+func DetectHostOrigin(ctx context.Context) domain.IPEnrichment {
+	reqCtx, cancel := context.WithTimeout(ctx, 3500*time.Millisecond)
+	defer cancel()
+
+	// Tier 1: query ipwho.is directly
+	req, err := http.NewRequestWithContext(reqCtx, "GET", "https://ipwho.is/", nil)
+	if err == nil {
+		req.Header.Set("User-Agent", "Mozilla/5.0 Chrome/124.0.0.0")
+		client, cErr := BuildTLSClient("", 3500*time.Millisecond)
+		if cErr == nil {
+			resp, rErr := client.Do(req)
+			if rErr == nil && resp.StatusCode == 200 {
+				body, _ := io.ReadAll(io.LimitReader(resp.Body, 32*1024))
+				_ = resp.Body.Close()
+				var data struct {
+					Success     bool    `json:"success"`
+					IP          string  `json:"ip"`
+					Country     string  `json:"country"`
+					CountryCode string  `json:"country_code"`
+					City        string  `json:"city"`
+					Latitude    float64 `json:"latitude"`
+					Longitude   float64 `json:"longitude"`
+					Connection  struct {
+						ISP string `json:"isp"`
+						Org string `json:"org"`
+					} `json:"connection"`
+				}
+				if json.Unmarshal(body, &data) == nil && data.Success && data.CountryCode != "" {
+					return domain.IPEnrichment{
+						ExitIP:      data.IP,
+						CountryCode: data.CountryCode,
+						CountryName: data.Country,
+						City:        data.City,
+						ISP:         data.Connection.ISP,
+						Org:         data.Connection.Org,
+						Latitude:    data.Latitude,
+						Longitude:   data.Longitude,
+						Success:     true,
+					}
+				}
+			}
+		}
+	}
+
+	// Safe fallback (Tehran Origin) if host has no raw egress or lookup failed
+	return domain.IPEnrichment{
+		ExitIP:      "127.0.0.1",
+		CountryCode: "IR",
+		CountryName: "Iran",
+		City:        "Tehran",
+		Latitude:    35.6892,
+		Longitude:   51.3890,
+		Success:     true,
+	}
 }
 
 func queryIPLeakNet(ctx context.Context, client tls_client.HttpClient) (domain.IPEnrichment, error) {

@@ -68,7 +68,7 @@
                     <!-- KPI Card 1: Yield -->
                     <div class="kpi-card">
                         <div class="kpi-label">
-                            <span>AI Clean Yield</span>
+                            <span>Available Proxies</span>
                             <span>🌟</span>
                         </div>
                         <div class="kpi-value-row">
@@ -134,15 +134,12 @@
                 <div class="filter-dock">
                     <div class="filter-pills" id="filter-pills-container">
                         <button class="pill active" data-filter="all">All Nodes (<span id="filter-all-cnt">0</span>)</button>
-                        <button class="pill clean" data-filter="clean">🌟 AI Clean (<span id="filter-clean-cnt">0</span>)</button>
+                        <button class="pill clean" data-filter="clean">🌟 Available (<span id="filter-clean-cnt">0</span>)</button>
                         <button class="pill" data-filter="geo">🌍 Geoblocked (<span id="filter-geo-cnt">0</span>)</button>
                         <button class="pill" data-filter="error">⚠️ Core Error (<span id="filter-error-cnt">0</span>)</button>
-                        <div class="pill-divider"></div>
-                        <button class="pill" data-filter-country="DE">🇩🇪 Germany</button>
-                        <button class="pill" data-filter-country="NL">🇳🇱 Netherlands</button>
-                        <button class="pill" data-filter-country="US">🇺🇸 USA</button>
-                        <div class="pill-divider"></div>
-                        <button class="pill" data-filter="residential">🏠 Residential Only</button>
+                        <button class="pill" data-filter="residential" id="filter-res-pill" style="display:none;">🏠 Residential (<span id="filter-res-cnt">0</span>)</button>
+                        <div class="pill-divider" id="filter-country-divider" style="display:none;"></div>
+                        <div id="dynamic-country-pills" style="display:inline-flex; gap:6px;"></div>
                     </div>
 
                     <div class="search-box">
@@ -181,7 +178,7 @@
                     <!-- Top Filter Pills on Globe (Hydrated Dynamically) -->
                     <div class="globe-filter-bar" id="globe-filter-bar">
                         <button class="filter-pill active" data-globe-filter="all">All Nodes</button>
-                        <button class="filter-pill" data-globe-filter="clean">🌟 AI Clean</button>
+                        <button class="filter-pill" data-globe-filter="clean">🌟 Available</button>
                     </div>
 
                     <!-- Left Floating Inspector Card -->
@@ -276,7 +273,7 @@
                         </div>
 
                         <div class="traffic-legend-row">
-                            <div class="legend-item"><span style="color: #34d399;">●</span> AI Clean Pass</div>
+                            <div class="legend-item"><span style="color: #34d399;">●</span> Available Pass</div>
                             <div class="legend-item"><span style="color: #fb7185;">●</span> Blocked / Fail</div>
                             <div style="font-family: var(--font-mono); font-weight: 700; color: #fff;" id="traffic-total-speed">0 Mbps</div>
                         </div>
@@ -322,7 +319,7 @@
                         <div class="probe-details">
                             <div class="detail-row"><span>Inspection:</span><span class="detail-val">Geoblock + Redirects</span></div>
                             <div class="detail-row"><span>TLS Profile:</span><span class="detail-val">Chrome 124 / H2</span></div>
-                            <div class="detail-row"><span>Timeout:</span><span class="detail-val">5,000 ms</span></div>
+                            <div class="detail-row"><span>Timeout:</span><span class="detail-val" id="probe-timeout-gemini">8,000 ms</span></div>
                         </div>
                         <div class="probe-stats-bar">
                             <span class="stat-pass" id="stat-gemini-pass">● Active In Scan</span>
@@ -348,7 +345,7 @@
                         <div class="probe-details">
                             <div class="detail-row"><span>Inspection:</span><span class="detail-val">Available-Regions Catch</span></div>
                             <div class="detail-row"><span>TLS Profile:</span><span class="detail-val">Chrome 124 / H2</span></div>
-                            <div class="detail-row"><span>Timeout:</span><span class="detail-val">5,000 ms</span></div>
+                            <div class="detail-row"><span>Timeout:</span><span class="detail-val" id="probe-timeout-aistudio">8,000 ms</span></div>
                         </div>
                         <div class="probe-stats-bar">
                             <span class="stat-pass" id="stat-aistudio-pass">● Active In Scan</span>
@@ -374,7 +371,7 @@
                         <div class="probe-details">
                             <div class="detail-row"><span>Inspection:</span><span class="detail-val">Cloudflare WAF Check</span></div>
                             <div class="detail-row"><span>TLS Profile:</span><span class="detail-val">Chrome 124 / H2</span></div>
-                            <div class="detail-row"><span>Timeout:</span><span class="detail-val">6,000 ms</span></div>
+                            <div class="detail-row"><span>Timeout:</span><span class="detail-val" id="probe-timeout-chatgpt">8,000 ms</span></div>
                         </div>
                         <div class="probe-stats-bar">
                             <span class="stat-pass" id="stat-chatgpt-pass">● Active In Scan</span>
@@ -400,7 +397,7 @@
                         <div class="probe-details">
                             <div class="detail-row"><span>Inspection:</span><span class="detail-val">Country Policy Gate</span></div>
                             <div class="detail-row"><span>TLS Profile:</span><span class="detail-val">Chrome 124 / H2</span></div>
-                            <div class="detail-row"><span>Timeout:</span><span class="detail-val">6,000 ms</span></div>
+                            <div class="detail-row"><span>Timeout:</span><span class="detail-val" id="probe-timeout-claude">8,000 ms</span></div>
                         </div>
                         <div class="probe-stats-bar">
                             <span class="stat-pass" id="stat-claude-pass">● Active In Scan</span>
@@ -424,8 +421,8 @@
                             </label>
                         </div>
                         <div class="probe-details">
-                            <div class="detail-row"><span>Gating:</span><span class="detail-val" style="color: #fbbf24;">AI-Passed Only</span></div>
-                            <div class="detail-row"><span>Cap / Volume:</span><span class="detail-val">3 MB (3s Limit)</span></div>
+                            <div class="detail-row"><span>Gating:</span><span class="detail-val" style="color: #34d399;">Available Nodes Only</span></div>
+                            <div class="detail-row"><span>Cap / Volume:</span><span class="detail-val" id="probe-speed-cap">3 MB (3s Limit)</span></div>
                             <div class="detail-row"><span>Network:</span><span class="detail-val">Anycast Edge</span></div>
                         </div>
                         <div class="probe-stats-bar">
@@ -467,7 +464,7 @@
                         <div class="presets-title">Filtered Export Presets</div>
 
                         <div class="preset-row" id="preset-export-all">
-                            <div class="preset-name"><span>🌟</span> All AI Clean Nodes (Unrestricted)</div>
+                            <div class="preset-name"><span>🌟</span> All Available Nodes (Unrestricted)</div>
                             <div class="preset-count" id="preset-clean-count">0 Nodes</div>
                         </div>
 
@@ -550,7 +547,7 @@
             </button>
             <div class="dock-divider"></div>
             <button class="dock-btn ghost" id="dock-btn-copy-clean">
-                <span>📋</span> Copy Clean (<span id="dock-clean-count">0</span>)
+                <span>📋</span> Copy Available (<span id="dock-clean-count">0</span>)
             </button>
             <button class="dock-btn danger" id="dock-btn-reset" title="Clear all configs">
                 <span>🗑️</span>
