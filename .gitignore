@@ -28,6 +28,38 @@ temp/
 tmp/
 .cache/
 coverage.out
+*.patch
+*.diff
+*.dmp
+*.crash
+
+# Environment & Local Secrets
+.env
+.env.*
+*.env
+
+# Python runtime & test caches
+__pycache__/
+*.py[cod]
+*$py.class
+*.pytest_cache/
+*.pyc
+
+# Local generator and test helper scripts
+test_*.js
+test_*.py
+verify_*.png
+generate_*.py
+update_*.py
+build_*.py
+out_*.png
+out_*.jpg
+
+# Node & package caches
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
 
 # IDE and Editor configurations
 .idea/

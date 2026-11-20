@@ -108,10 +108,11 @@ func EnrichProxyRemark(r *domain.ProxyEvaluationReport) string {
 }
 
 func rewriteURLFragment(rawURI, newRemark string) string {
+	encoded := strings.ReplaceAll(url.QueryEscape(newRemark), "+", "%20")
 	if idx := strings.Index(rawURI, "#"); idx != -1 {
-		return rawURI[:idx] + "#" + url.QueryEscape(newRemark)
+		return rawURI[:idx] + "#" + encoded
 	}
-	return rawURI + "#" + url.QueryEscape(newRemark)
+	return rawURI + "#" + encoded
 }
 
 func rewriteVMessRemark(rawURI, newRemark string) string {

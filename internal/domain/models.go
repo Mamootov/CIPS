@@ -102,7 +102,7 @@ type InterceptionType string
 
 const (
 	InterceptNone                 InterceptionType = "NONE"
-	InterceptCloudflareChallenge  InterceptionType = "CLOUDFLARE_CHALLENGE"  // Turnstile, Under-Attack mode, 403/503
+	InterceptCloudflareChallenge  InterceptionType = "CLOUDFLARE_CHALLENGE"   // Turnstile, Under-Attack mode, 403/503
 	InterceptGoogleUnusualTraffic InterceptionType = "GOOGLE_UNUSUAL_TRAFFIC" // Google /sorry/index captcha redirect
 	InterceptGeoRestricted        InterceptionType = "GEO_RESTRICTED"         // Region not supported banner
 	InterceptLocalEngineError     InterceptionType = "LOCAL_ENGINE_ERROR"     // connectex / socket refused

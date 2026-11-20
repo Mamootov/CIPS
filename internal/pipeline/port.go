@@ -24,7 +24,7 @@ func (pm *PortManager) AllocatePort() (int, error) {
 	pm.mu.Lock()
 	defer pm.mu.Unlock()
 
-	for attempts := 0; attempts < 50; attempts++ {
+	for attempts := 0; attempts < 200; attempts++ {
 		l, err := net.Listen("tcp", "127.0.0.1:0")
 		if err != nil {
 			continue
@@ -38,7 +38,7 @@ func (pm *PortManager) AllocatePort() (int, error) {
 		}
 	}
 
-	return 0, fmt.Errorf("unable to find free ephemeral port after 50 attempts")
+	return 0, fmt.Errorf("unable to find free ephemeral port after 200 attempts")
 }
 
 // AllocateBatch allocates N distinct available ports.

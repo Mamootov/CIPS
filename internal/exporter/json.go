@@ -12,10 +12,10 @@ import (
 
 // SessionLog represents the complete persisted telemetry artifact.
 type SessionLog struct {
-	SessionID       string                            `json:"session_id"`
-	GeneratedAt     string                            `json:"generated_at"`
-	DurationSeconds float64                           `json:"duration_seconds"`
-	Summary         domain.ScanSessionStats           `json:"summary"`
+	SessionID       string                                   `json:"session_id"`
+	GeneratedAt     string                                   `json:"generated_at"`
+	DurationSeconds float64                                  `json:"duration_seconds"`
+	Summary         domain.ScanSessionStats                  `json:"summary"`
 	Configurations  map[string]*domain.ProxyEvaluationReport `json:"configurations"`
 }
 

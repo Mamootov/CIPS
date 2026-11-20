@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"cips/internal/domain"
@@ -187,6 +188,9 @@ func (xe *XrayEngine) StartPool(ctx context.Context, configs []domain.ProxyConfi
 		})
 	}
 
+	var activeCloseCount atomic.Int32
+	activeCloseCount.Store(int32(len(instances)))
+
 	// Wrap instances with cleanup
 	finalInstances := make([]domain.EngineInstance, len(instances))
 	for i, inst := range instances {
@@ -196,7 +200,9 @@ func (xe *XrayEngine) StartPool(ctx context.Context, configs []domain.ProxyConfi
 			config:   inst.config,
 			onClose: func() error {
 				xe.portManager.ReleasePort(port)
-				killProcess()
+				if activeCloseCount.Add(-1) <= 0 {
+					killProcess()
+				}
 				return nil
 			},
 		}
