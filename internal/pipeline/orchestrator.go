@@ -70,6 +70,23 @@ func (o *Orchestrator) SetProbes(probes []domain.IProbe) {
 	o.probes = probes
 }
 
+// SetConcurrency dynamically updates the worker concurrency.
+func (o *Orchestrator) SetConcurrency(c int) {
+	if c > 0 {
+		o.concurrency = c
+	}
+}
+
+// SetTimeouts updates Stage 1 ping and Stage 2 probe timeouts.
+func (o *Orchestrator) SetTimeouts(p1Timeout, p2Timeout int) {
+	if p1Timeout > 0 {
+		o.pingTimeout = p1Timeout
+	}
+	if p2Timeout > 0 {
+		o.probeTimeout = p2Timeout
+	}
+}
+
 // Cancel terminates any currently executing scan session immediately.
 func (o *Orchestrator) Cancel() {
 	if o.cancelFunc != nil {
@@ -138,7 +155,21 @@ func (o *Orchestrator) Execute(parentCtx context.Context, candidates []domain.Pr
 			if err != nil || latency <= 0 {
 				r.Stage1Passed = false
 				r.Stage1LatencyMs = 0
-				r.State = domain.StateStage1Dead
+				r.State = domain.StateComplete
+				r.IsClean = false
+				for _, p := range o.probes {
+					r.ProbeResults[p.ID()] = domain.ProbeResult{
+						ProbeID:      p.ID(),
+						ProbeName:    p.Name(),
+						Status:       domain.StatusFail,
+						ErrorMessage: "Ping handshake timed out or node unreachable",
+						Diagnostic: &domain.DiagnosticInfo{
+							Layer:            domain.LayerUpstreamProxy,
+							InterceptionType: domain.InterceptUpstreamRefused,
+							Summary:          "TCP/TLS handshake failed during Stage 1 triage",
+						},
+					}
+				}
 				atomic.AddInt64(&stats.Stage1Dead, 1)
 			} else {
 				r.Stage1Passed = true
@@ -152,7 +183,7 @@ func (o *Orchestrator) Execute(parentCtx context.Context, candidates []domain.Pr
 			}
 
 			if o.callbacks.OnItemUpdate != nil {
-				o.callbacks.OnItemUpdate(r)
+				o.callbacks.OnItemUpdate(r.Clone())
 			}
 			if o.callbacks.OnStatsUpdate != nil {
 				o.callbacks.OnStatsUpdate(stats)
@@ -174,9 +205,9 @@ func (o *Orchestrator) Execute(parentCtx context.Context, candidates []domain.Pr
 	// STAGE 2: Service Probing & IP Metadata Enrichment
 	// -------------------------------------------------------------
 	if len(aliveReports) > 0 && len(o.probes) > 0 {
-		batchSize := 20
-		if o.concurrency < batchSize {
-			batchSize = o.concurrency
+		batchSize := o.concurrency
+		if batchSize <= 0 {
+			batchSize = 20
 		}
 
 		for start := 0; start < len(aliveReports); start += batchSize {
@@ -198,36 +229,42 @@ func (o *Orchestrator) Execute(parentCtx context.Context, candidates []domain.Pr
 			// Launch pool of local proxy tunnels
 			instances, err := o.engine.StartPool(ctx, chunkConfigs)
 			if err != nil {
-				// Fallback: Try individual instances if pool creation failed (e.g. 1 bad config poisoned the batch)
+				// Fallback: Try individual instances in parallel if pool creation failed (e.g. 1 bad config poisoned the batch)
+				var fbWg sync.WaitGroup
 				for _, r := range chunkReports {
-					singleInstance, sErr := o.engine.StartPool(ctx, []domain.ProxyConfig{r.Config})
-					if sErr != nil || len(singleInstance) == 0 {
-						r.State = domain.StateComplete
-						r.IsClean = false
-						for _, p := range o.probes {
-							r.ProbeResults[p.ID()] = domain.ProbeResult{
-								ProbeID:      p.ID(),
-								ProbeName:    p.Name(),
-								Status:       domain.StatusFail,
-								ErrorMessage: fmt.Sprintf("Tunnel initialization failed: %v", sErr),
-								Diagnostic: &domain.DiagnosticInfo{
-									Layer:            domain.LayerLocalEngine,
-									InterceptionType: domain.InterceptLocalEngineError,
-									Summary:          fmt.Sprintf("Xray local port bind failed: %v", sErr),
-								},
+					fbWg.Add(1)
+					go func(rep *domain.ProxyEvaluationReport) {
+						defer fbWg.Done()
+						singleInstance, sErr := o.engine.StartPool(ctx, []domain.ProxyConfig{rep.Config})
+						if sErr != nil || len(singleInstance) == 0 {
+							rep.State = domain.StateComplete
+							rep.IsClean = false
+							for _, p := range o.probes {
+								rep.ProbeResults[p.ID()] = domain.ProbeResult{
+									ProbeID:      p.ID(),
+									ProbeName:    p.Name(),
+									Status:       domain.StatusFail,
+									ErrorMessage: fmt.Sprintf("Tunnel initialization failed: %v", sErr),
+									Diagnostic: &domain.DiagnosticInfo{
+										Layer:            domain.LayerLocalEngine,
+										InterceptionType: domain.InterceptLocalEngineError,
+										Summary:          fmt.Sprintf("Xray local port bind failed: %v", sErr),
+									},
+								}
 							}
+							atomic.AddInt64(&stats.Stage2Failed, 1)
+							if o.callbacks.OnItemUpdate != nil {
+								o.callbacks.OnItemUpdate(rep)
+							}
+							return
 						}
-						atomic.AddInt64(&stats.Stage2Failed, 1)
-						if o.callbacks.OnItemUpdate != nil {
-							o.callbacks.OnItemUpdate(r)
-						}
-						continue
-					}
 
-					inst := singleInstance[0]
-					o.evaluateProxyProbes(ctx, r, inst.SOCKS5Endpoint(), &stats)
-					_ = inst.Close()
+						inst := singleInstance[0]
+						defer inst.Close()
+						o.evaluateProxyProbes(ctx, rep, inst.SOCKS5Endpoint(), &stats)
+					}(r)
 				}
+				fbWg.Wait()
 				continue
 			}
 
@@ -270,7 +307,14 @@ func (o *Orchestrator) evaluateProxyProbes(
 	var resultsMu sync.Mutex
 
 	hasAIPass := false
-	probeCtx := context.WithValue(ctx, "config_id", r.Config.ID)
+
+	timeoutMs := o.probeTimeout
+	if timeoutMs <= 0 {
+		timeoutMs = 8000
+	}
+	probeCtx, cancel := context.WithTimeout(ctx, time.Duration(timeoutMs)*time.Millisecond)
+	defer cancel()
+	probeCtx = context.WithValue(probeCtx, "config_id", r.Config.ID)
 
 	for _, p := range o.probes {
 		probe := p
@@ -280,25 +324,30 @@ func (o *Orchestrator) evaluateProxyProbes(
 			defer probeWg.Done()
 			res := probe.Evaluate(probeCtx, endpoint)
 
+			var extractedIP *domain.IPEnrichment
+			// If probe provides IP information extraction
+			if enricher, ok := probe.(interface {
+				ExtractIPInfo(ctx context.Context, endpoint string) (domain.IPEnrichment, error)
+			}); ok && res.Status == domain.StatusPass {
+				if ipInfo, err := enricher.ExtractIPInfo(probeCtx, endpoint); err == nil {
+					extractedIP = &ipInfo
+				}
+			}
+
 			resultsMu.Lock()
 			r.ProbeResults[probe.ID()] = res
 			// Only actual AI service probes qualify a node for AI-Clean status (metadata/speed probes are auxiliary)
 			if probe.ID() != "ipleak" && probe.ID() != "speedtest" && res.Status == domain.StatusPass {
 				hasAIPass = true
 			}
-
-			// If probe provides IP information extraction
-			if enricher, ok := probe.(interface {
-				ExtractIPInfo(ctx context.Context, endpoint string) (domain.IPEnrichment, error)
-			}); ok && res.Status == domain.StatusPass {
-				if ipInfo, err := enricher.ExtractIPInfo(ctx, endpoint); err == nil {
-					r.IPInfo = ipInfo
-				}
+			if extractedIP != nil {
+				r.IPInfo = *extractedIP
 			}
+			snapshot := r.Clone()
 			resultsMu.Unlock()
 
 			if o.callbacks.OnItemUpdate != nil {
-				o.callbacks.OnItemUpdate(r)
+				o.callbacks.OnItemUpdate(snapshot)
 			}
 		}()
 	}
@@ -316,13 +365,15 @@ func (o *Orchestrator) evaluateProxyProbes(
 				r.DownloadSpeedMbps = mbps
 			}
 		}
+		snapshot := r.Clone()
 		resultsMu.Unlock()
 
 		if o.callbacks.OnItemUpdate != nil {
-			o.callbacks.OnItemUpdate(r)
+			o.callbacks.OnItemUpdate(snapshot)
 		}
 	}
 
+	resultsMu.Lock()
 	r.State = domain.StateComplete
 	r.IsClean = hasAIPass
 
@@ -331,9 +382,11 @@ func (o *Orchestrator) evaluateProxyProbes(
 	} else {
 		atomic.AddInt64(&stats.Stage2Failed, 1)
 	}
+	finalSnapshot := r.Clone()
+	resultsMu.Unlock()
 
 	if o.callbacks.OnItemUpdate != nil {
-		o.callbacks.OnItemUpdate(r)
+		o.callbacks.OnItemUpdate(finalSnapshot)
 	}
 	if o.callbacks.OnStatsUpdate != nil {
 		o.callbacks.OnStatsUpdate(*stats)

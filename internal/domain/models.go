@@ -188,6 +188,25 @@ func NewReport(cfg ProxyConfig) *ProxyEvaluationReport {
 	}
 }
 
+// Clone returns a thread-safe deep copy of the report, isolating maps and pointers.
+func (r *ProxyEvaluationReport) Clone() *ProxyEvaluationReport {
+	if r == nil {
+		return nil
+	}
+	cp := *r
+	if r.ProbeResults != nil {
+		cp.ProbeResults = make(map[string]ProbeResult, len(r.ProbeResults))
+		for k, v := range r.ProbeResults {
+			if v.Diagnostic != nil {
+				dCopy := *v.Diagnostic
+				v.Diagnostic = &dCopy
+			}
+			cp.ProbeResults[k] = v
+		}
+	}
+	return &cp
+}
+
 // ScanSessionStats tracks global batch progress counters.
 type ScanSessionStats struct {
 	SessionID     string `json:"session_id"`

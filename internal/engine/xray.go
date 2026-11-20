@@ -105,9 +105,6 @@ func (xe *XrayEngine) StartPool(ctx context.Context, configs []domain.ProxyConfi
 		return nil, nil
 	}
 
-	xe.mu.Lock()
-	defer xe.mu.Unlock()
-
 	ports, err := xe.portManager.AllocateBatch(len(configs))
 	if err != nil {
 		return nil, fmt.Errorf("failed to allocate local ports for pool: %w", err)
@@ -150,15 +147,29 @@ func (xe *XrayEngine) StartPool(ctx context.Context, configs []domain.ProxyConfi
 	}
 
 	cmdPid := cmd.Process.Pid
+
+	xe.mu.Lock()
 	xe.activeCmds[cmdPid] = cmd
 	xe.tempFiles = append(xe.tempFiles, configPath)
+	xe.mu.Unlock()
 
-	// Active socket readiness polling instead of blind sleep (generous 5s budget for large multi-inbound pools on Windows)
-	if err := WaitForPortsReady(ports, 5000*time.Millisecond); err != nil {
+	// Dynamic socket readiness polling (1.5s for single fallback, up to 3.5s for large multi-inbound pools)
+	readyBudget := 1500 * time.Millisecond
+	if len(ports) > 1 {
+		readyBudget = time.Duration(1200+len(ports)*40) * time.Millisecond
+		if readyBudget > 4000*time.Millisecond {
+			readyBudget = 4000 * time.Millisecond
+		}
+	}
+
+	if err := WaitForPortsReady(ports, readyBudget); err != nil {
 		if cmd.Process != nil {
 			_ = cmd.Process.Kill()
 		}
 		_ = os.Remove(configPath)
+		xe.mu.Lock()
+		delete(xe.activeCmds, cmdPid)
+		xe.mu.Unlock()
 		xe.portManager.ReleaseBatch(ports)
 		return nil, fmt.Errorf("xray socket initialization failed: %w", err)
 	}

@@ -3,46 +3,625 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CIPS — Clean IP & AI Proxy Scanner</title>
+    <title>CIPS — Next-Gen Clean IP Scanner & Observability Cockpit</title>
     <link rel="stylesheet" href="style.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="vendor/three.min.js"></script>
+    <script src="vendor/OrbitControls.js"></script>
 </head>
 <body>
-    <div class="app-container">
-        <!-- Header -->
-        <header class="app-header">
-            <div class="brand">
-                <div class="logo-badge">⚡ CIPS</div>
-                <div>
-                    <h1>Clean IP Scanner</h1>
-                    <p class="subtitle">Enterprise High-Throughput Proxy AI Validator</p>
+    <div class="app-layout">
+        <!-- TOP PERSISTENT NAVIGATION HEADER -->
+        <header class="cockpit-header">
+            <div class="brand-group">
+                <div class="logo-badge">⚡</div>
+                <div class="brand-text">
+                    <div class="brand-title-row">
+                        <span class="brand-name">CIPS</span>
+                        <span class="version-tag">v1.2</span>
+                    </div>
+                    <span class="brand-sub">Enterprise AI Clean Proxy Observability</span>
                 </div>
             </div>
-            <div class="header-stats">
-                <div class="stat-pill"><span class="stat-label">Total:</span> <span id="stat-total" class="stat-value">0</span></div>
-                <div class="stat-pill success"><span class="stat-label">Alive (P1):</span> <span id="stat-alive" class="stat-value">0</span></div>
-                <div class="stat-pill primary"><span class="stat-label">AI Ready:</span> <span id="stat-clean" class="stat-value">0</span></div>
-                <div class="stat-pill danger"><span class="stat-label">Dead:</span> <span id="stat-dead" class="stat-value">0</span></div>
+
+            <!-- 4 CORE TABS -->
+            <nav class="nav-tabs" id="nav-tabs">
+                <button class="nav-tab active" data-tab="dashboard">
+                    <span class="tab-icon">📊</span>
+                    <span>Dashboard</span>
+                </button>
+                <button class="nav-tab" data-tab="map">
+                    <span class="tab-icon">🗺️</span>
+                    <span>Fleet Globe 3D</span>
+                </button>
+                <button class="nav-tab" data-tab="probes">
+                    <span class="tab-icon">🧪</span>
+                    <span>Probe Studio</span>
+                </button>
+                <button class="nav-tab" data-tab="subscriptions">
+                    <span class="tab-icon">📦</span>
+                    <span>Subscriptions</span>
+                </button>
+            </nav>
+
+            <!-- SYSTEM STATUS TELEMETRY -->
+            <div class="header-status">
+                <div class="engine-badge" id="engine-status-badge">
+                    <span class="pulse-dot"></span>
+                    <span id="engine-status-text">XRAY READY</span>
+                </div>
+                <span class="node-count-label" id="header-node-count">0 Nodes Loaded</span>
             </div>
         </header>
 
-        <!-- Main Workspace Grid -->
-        <div class="workspace-grid">
-            <!-- Left Panel: Ingestion & Controls -->
-            <aside class="control-panel">
-                <section class="card">
-                    <h2 class="section-title">1. Intake & Ingestion</h2>
-                    <!-- Drag and Drop Box -->
+        <!-- MAIN VIEW CONTAINER (SWITCHED BY TABS) -->
+        <main class="cockpit-main">
+
+            <!-- ========================================== -->
+            <!-- VIEW 1: DASHBOARD COCKPIT                  -->
+            <!-- ========================================== -->
+            <section id="view-dashboard" class="cockpit-view active">
+                <!-- Sentry-Style KPI Summary Cards -->
+                <div class="metrics-grid">
+                    <!-- KPI Card 1: Yield -->
+                    <div class="kpi-card">
+                        <div class="kpi-label">
+                            <span>AI Clean Yield</span>
+                            <span>🌟</span>
+                        </div>
+                        <div class="kpi-value-row">
+                            <span class="kpi-value" id="kpi-clean-count">0 <span class="kpi-denom" id="kpi-total-denom">/ 0</span></span>
+                        </div>
+                        <div class="kpi-subtext positive" id="kpi-yield-percent">
+                            ▲ 0.0% Unrestricted AI Access
+                        </div>
+                    </div>
+
+                    <!-- KPI Card 2: Speed -->
+                    <div class="kpi-card">
+                        <div class="kpi-label">
+                            <span>Avg Anycast Speed</span>
+                            <span>⚡</span>
+                        </div>
+                        <div class="kpi-value-row">
+                            <span class="kpi-value" id="kpi-avg-speed">0.0 <span class="kpi-denom">Mbps</span></span>
+                        </div>
+                        <div class="kpi-subtext positive" id="kpi-peak-speed">
+                            ▲ Peak 0.0 Mbps (Cloudflare)
+                        </div>
+                    </div>
+
+                    <!-- KPI Card 3: Latency -->
+                    <div class="kpi-card">
+                        <div class="kpi-label">
+                            <span>Latency (p50 / p95)</span>
+                            <span>⏱️</span>
+                        </div>
+                        <div class="kpi-value-row">
+                            <span class="kpi-value" id="kpi-p50">0 <span class="kpi-denom">ms</span></span>
+                        </div>
+                        <div class="kpi-subtext neutral" id="kpi-p95">
+                            p95: 0 ms · Jitter: ±0ms
+                        </div>
+                    </div>
+
+                    <!-- KPI Card 4: Health Distribution Bar -->
+                    <div class="kpi-card">
+                        <div class="kpi-label">
+                            <span>Health Distribution</span>
+                            <span>📊</span>
+                        </div>
+                        <div class="health-bar-container">
+                            <div class="stacked-bar">
+                                <div id="bar-seg-clean" class="bar-seg clean" style="width: 0%" title="Clean"></div>
+                                <div id="bar-seg-geo" class="bar-seg geo" style="width: 0%" title="Geoblocked"></div>
+                                <div id="bar-seg-rate" class="bar-seg rate" style="width: 0%" title="Rate Limited"></div>
+                                <div id="bar-seg-fail" class="bar-seg fail" style="width: 0%" title="Failed"></div>
+                            </div>
+                            <div class="bar-legend">
+                                <span style="color: #34d399;" id="legend-clean">● 0 Clean</span>
+                                <span style="color: #38bdf8;" id="legend-geo">● 0 Geo</span>
+                                <span style="color: #f59e0b;" id="legend-rate">● 0 Rate</span>
+                                <span style="color: #fb7185;" id="legend-fail">● 0 Fail</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Terralogix-Style Filter & Search Dock -->
+                <div class="filter-dock">
+                    <div class="filter-pills" id="filter-pills-container">
+                        <button class="pill active" data-filter="all">All Nodes (<span id="filter-all-cnt">0</span>)</button>
+                        <button class="pill clean" data-filter="clean">🌟 AI Clean (<span id="filter-clean-cnt">0</span>)</button>
+                        <button class="pill" data-filter="geo">🌍 Geoblocked (<span id="filter-geo-cnt">0</span>)</button>
+                        <button class="pill" data-filter="error">⚠️ Core Error (<span id="filter-error-cnt">0</span>)</button>
+                        <div class="pill-divider"></div>
+                        <button class="pill" data-filter-country="DE">🇩🇪 Germany</button>
+                        <button class="pill" data-filter-country="NL">🇳🇱 Netherlands</button>
+                        <button class="pill" data-filter-country="US">🇺🇸 USA</button>
+                        <div class="pill-divider"></div>
+                        <button class="pill" data-filter="residential">🏠 Residential Only</button>
+                    </div>
+
+                    <div class="search-box">
+                        <span>🔍</span>
+                        <input type="text" id="node-search-input" placeholder="Search remark, IP, or ISP...">
+                        <kbd>⌘K</kbd>
+                    </div>
+                </div>
+
+                <!-- Modal-Style Technical Data Matrix Grid -->
+                <div class="table-card">
+                    <table class="cockpit-table" id="cockpit-table">
+                        <thead id="cockpit-thead">
+                            <!-- Populated dynamically based on active service probes -->
+                        </thead>
+                        <tbody id="cockpit-tbody">
+                            <!-- Matrix rows hydrated here -->
+                        </tbody>
+                    </table>
+
+                    <!-- Empty state -->
+                    <div id="table-empty-state" class="table-empty">
+                        <div class="empty-icon">⚡</div>
+                        <h3>No Proxy Configurations Ingested</h3>
+                        <p>Click "Ingest Configs" in the bottom dock to load your VLESS, VMess, or Trojan proxies.</p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ========================================== -->
+            <!-- VIEW 2: FLEET GLOBE 3D & TRAFFIC MAP       -->
+            <!-- ========================================== -->
+            <section id="view-map" class="cockpit-view">
+                <div class="globe-viewport-container">
+
+                    <!-- Top Filter Pills on Globe (Hydrated Dynamically) -->
+                    <div class="globe-filter-bar" id="globe-filter-bar">
+                        <button class="filter-pill active" data-globe-filter="all">All Nodes</button>
+                        <button class="filter-pill" data-globe-filter="clean">🌟 AI Clean</button>
+                    </div>
+
+                    <!-- Left Floating Inspector Card -->
+                    <div class="node-inspector-card" id="node-inspector-card">
+                        <div class="inspector-tag">● FOCUSED TRANSIT CORRIDOR</div>
+                        <div class="node-title">
+                            <span id="inspect-node-title">Select a node</span>
+                            <span id="inspect-node-clean-badge" class="clean-badge-glow">🌟 Clean</span>
+                        </div>
+                        <div class="node-corridor-route" id="inspect-node-route">
+                            <span>🇮🇷 Tehrān (Origin)</span> ──────▶ <span id="inspect-node-dest">Destination</span>
+                        </div>
+
+                        <div class="telemetry-box">
+                            <div class="telemetry-row">
+                                <span class="tel-label">City & Geo:</span>
+                                <span class="tel-val" id="inspect-geo">-</span>
+                            </div>
+                            <div class="telemetry-row">
+                                <span class="tel-label">Cluster Jitter:</span>
+                                <span class="tel-val" id="inspect-jitter" style="color: #38bdf8;">-</span>
+                            </div>
+                            <div class="telemetry-row">
+                                <span class="tel-label">Protocol & Port:</span>
+                                <span class="tel-val" id="inspect-proto">-</span>
+                            </div>
+                            <div class="telemetry-row">
+                                <span class="tel-label">Exit IP & ISP:</span>
+                                <span class="tel-val" id="inspect-isp">-</span>
+                            </div>
+                            <div class="telemetry-row">
+                                <span class="tel-label">Classification:</span>
+                                <span class="tel-val" id="inspect-conn-type" style="color: #34d399;">-</span>
+                            </div>
+                            <div class="telemetry-row">
+                                <span class="tel-label">Speed & Ping:</span>
+                                <span class="tel-val" id="inspect-speed-ping" style="color: #fff; font-weight: 700;">-</span>
+                            </div>
+                        </div>
+
+                        <div class="ai-status-summary" id="inspect-ai-chips">
+                            <!-- Populated with probe latency chips -->
+                        </div>
+
+                        <button class="btn-copy-node" id="btn-copy-inspected">
+                            <span>📋</span> Copy Verified Config Link
+                        </button>
+                    </div>
+
+                    <!-- Right-Top City Hub Cluster Card -->
+                    <div class="cluster-card-right" id="cluster-card-right">
+                        <div class="cluster-heading">
+                            <span id="cluster-city-title">City Hub Cluster</span>
+                            <span style="color: #10b981; font-family: var(--font-mono);" id="cluster-clean-count">0 Clean</span>
+                        </div>
+                        <div class="cluster-items-container" id="cluster-items-list">
+                            <!-- Clustered nodes listed here -->
+                        </div>
+                    </div>
+
+                    <!-- Right-Bottom: Real 2D Vector Traffic Map -->
+                    <div class="traffic-map-card">
+                        <div class="traffic-header">
+                            <div class="traffic-title">
+                                <span>🌐</span> GLOBAL TRAFFIC MAP
+                            </div>
+                            <div class="traffic-live">
+                                <span class="traffic-live-dot"></span>
+                                <span>LIVE CORRIDORS</span>
+                            </div>
+                        </div>
+
+                        <div class="traffic-svg-box">
+                            <svg class="traffic-svg" viewBox="0 0 340 160" id="traffic-svg">
+                                <defs>
+                                    <linearGradient id="corridorGreen" x1="0%" y1="0%" x2="100%" y2="0%">
+                                        <stop offset="0%" stop-color="#10b981" stop-opacity="0.9"/>
+                                        <stop offset="100%" stop-color="#34d399" stop-opacity="1"/>
+                                    </linearGradient>
+                                    <linearGradient id="corridorRed" x1="0%" y1="0%" x2="100%" y2="0%">
+                                        <stop offset="0%" stop-color="#f43f5e" stop-opacity="0.9"/>
+                                        <stop offset="100%" stop-color="#fb7185" stop-opacity="0.4"/>
+                                    </linearGradient>
+                                </defs>
+                                <g id="traffic-world-borders">
+                                    <!-- Real country boundary paths injected here -->
+                                </g>
+                                <g id="traffic-corridor-lines">
+                                    <!-- Dynamic Green vs Red traffic corridors injected here -->
+                                </g>
+                            </svg>
+                        </div>
+
+                        <div class="traffic-legend-row">
+                            <div class="legend-item"><span style="color: #34d399;">●</span> AI Clean Pass</div>
+                            <div class="legend-item"><span style="color: #fb7185;">●</span> Blocked / Fail</div>
+                            <div style="font-family: var(--font-mono); font-weight: 700; color: #fff;" id="traffic-total-speed">0 Mbps</div>
+                        </div>
+                    </div>
+
+                    <!-- Rotate & Interaction Hint -->
+                    <div class="rotate-hint">
+                        <span>🖱️</span> Drag to rotate Earth · Click node to activate Spectrum Flow Corridors
+                    </div>
+
+                    <!-- Three.js Canvas -->
+                    <canvas id="globe-canvas"></canvas>
+                </div>
+            </section>
+
+            <!-- ========================================== -->
+            <!-- VIEW 3: AI PROBE STUDIO                    -->
+            <!-- ========================================== -->
+            <section id="view-probes" class="cockpit-view">
+                <div class="studio-bar">
+                    <div class="studio-title">
+                        <h2>AI Probe & Benchmark Studio</h2>
+                        <p>Configure live validation targets, customize headers, and manage your dynamic LLM catalog.</p>
+                    </div>
+                </div>
+
+                <div class="probes-grid" id="probes-grid">
+                    <!-- 1. Google Gemini Card -->
+                    <div class="probe-card" data-probe="gemini">
+                        <div class="card-top">
+                            <div class="probe-badge">
+                                <div class="probe-icon">✨</div>
+                                <div>
+                                    <div class="probe-name">Google Gemini</div>
+                                    <div class="probe-target">gemini.google.com</div>
+                                </div>
+                            </div>
+                            <label class="toggle-switch">
+                                <input type="checkbox" id="probe-toggle-gemini" checked>
+                                <span class="toggle-slider"></span>
+                            </label>
+                        </div>
+                        <div class="probe-details">
+                            <div class="detail-row"><span>Inspection:</span><span class="detail-val">Geoblock + Redirects</span></div>
+                            <div class="detail-row"><span>TLS Profile:</span><span class="detail-val">Chrome 124 / H2</span></div>
+                            <div class="detail-row"><span>Timeout:</span><span class="detail-val">5,000 ms</span></div>
+                        </div>
+                        <div class="probe-stats-bar">
+                            <span class="stat-pass" id="stat-gemini-pass">● Active In Scan</span>
+                            <span class="stat-latency" id="stat-gemini-lat">Empirical Live</span>
+                        </div>
+                    </div>
+
+                    <!-- 2. Google AI Studio Card -->
+                    <div class="probe-card" data-probe="aistudio">
+                        <div class="card-top">
+                            <div class="probe-badge">
+                                <div class="probe-icon">⚡</div>
+                                <div>
+                                    <div class="probe-name">Google AI Studio</div>
+                                    <div class="probe-target">aistudio.google.com</div>
+                                </div>
+                            </div>
+                            <label class="toggle-switch">
+                                <input type="checkbox" id="probe-toggle-aistudio" checked>
+                                <span class="toggle-slider"></span>
+                            </label>
+                        </div>
+                        <div class="probe-details">
+                            <div class="detail-row"><span>Inspection:</span><span class="detail-val">Available-Regions Catch</span></div>
+                            <div class="detail-row"><span>TLS Profile:</span><span class="detail-val">Chrome 124 / H2</span></div>
+                            <div class="detail-row"><span>Timeout:</span><span class="detail-val">5,000 ms</span></div>
+                        </div>
+                        <div class="probe-stats-bar">
+                            <span class="stat-pass" id="stat-aistudio-pass">● Active In Scan</span>
+                            <span class="stat-latency" id="stat-aistudio-lat">Empirical Live</span>
+                        </div>
+                    </div>
+
+                    <!-- 3. OpenAI ChatGPT Card -->
+                    <div class="probe-card" data-probe="chatgpt">
+                        <div class="card-top">
+                            <div class="probe-badge">
+                                <div class="probe-icon">🟢</div>
+                                <div>
+                                    <div class="probe-name">OpenAI ChatGPT</div>
+                                    <div class="probe-target">chatgpt.com</div>
+                                </div>
+                            </div>
+                            <label class="toggle-switch">
+                                <input type="checkbox" id="probe-toggle-chatgpt" checked>
+                                <span class="toggle-slider"></span>
+                            </label>
+                        </div>
+                        <div class="probe-details">
+                            <div class="detail-row"><span>Inspection:</span><span class="detail-val">Cloudflare WAF Check</span></div>
+                            <div class="detail-row"><span>TLS Profile:</span><span class="detail-val">Chrome 124 / H2</span></div>
+                            <div class="detail-row"><span>Timeout:</span><span class="detail-val">6,000 ms</span></div>
+                        </div>
+                        <div class="probe-stats-bar">
+                            <span class="stat-pass" id="stat-chatgpt-pass">● Active In Scan</span>
+                            <span class="stat-latency" id="stat-chatgpt-lat">Empirical Live</span>
+                        </div>
+                    </div>
+
+                    <!-- 4. Anthropic Claude Card -->
+                    <div class="probe-card" data-probe="claude">
+                        <div class="card-top">
+                            <div class="probe-badge">
+                                <div class="probe-icon">🟣</div>
+                                <div>
+                                    <div class="probe-name">Anthropic Claude</div>
+                                    <div class="probe-target">claude.ai</div>
+                                </div>
+                            </div>
+                            <label class="toggle-switch">
+                                <input type="checkbox" id="probe-toggle-claude" checked>
+                                <span class="toggle-slider"></span>
+                            </label>
+                        </div>
+                        <div class="probe-details">
+                            <div class="detail-row"><span>Inspection:</span><span class="detail-val">Country Policy Gate</span></div>
+                            <div class="detail-row"><span>TLS Profile:</span><span class="detail-val">Chrome 124 / H2</span></div>
+                            <div class="detail-row"><span>Timeout:</span><span class="detail-val">6,000 ms</span></div>
+                        </div>
+                        <div class="probe-stats-bar">
+                            <span class="stat-pass" id="stat-claude-pass">● Active In Scan</span>
+                            <span class="stat-latency" id="stat-claude-lat">Empirical Live</span>
+                        </div>
+                    </div>
+
+                    <!-- 5. Low-Bandwidth Speedtest Card -->
+                    <div class="probe-card" data-probe="speedtest">
+                        <div class="card-top">
+                            <div class="probe-badge">
+                                <div class="probe-icon">🚀</div>
+                                <div>
+                                    <div class="probe-name">Cloudflare Speedtest</div>
+                                    <div class="probe-target">speed.cloudflare.com</div>
+                                </div>
+                            </div>
+                            <label class="toggle-switch">
+                                <input type="checkbox" id="probe-toggle-speedtest" checked>
+                                <span class="toggle-slider"></span>
+                            </label>
+                        </div>
+                        <div class="probe-details">
+                            <div class="detail-row"><span>Gating:</span><span class="detail-val" style="color: #fbbf24;">AI-Passed Only</span></div>
+                            <div class="detail-row"><span>Cap / Volume:</span><span class="detail-val">3 MB (3s Limit)</span></div>
+                            <div class="detail-row"><span>Network:</span><span class="detail-val">Anycast Edge</span></div>
+                        </div>
+                        <div class="probe-stats-bar">
+                            <span class="stat-pass" id="stat-speed-status">● Enabled</span>
+                            <span class="stat-latency">Data-Saver Cap</span>
+                        </div>
+                    </div>
+
+                    <!-- 6. Custom AI Probe Builder -->
+                    <div class="probe-card builder-card">
+                        <div class="builder-header">+ Add Custom AI Probe</div>
+                        <input class="builder-input" id="custom-name" placeholder="Service Name (e.g. DeepSeek AI)" value="">
+                        <input class="builder-input" id="custom-url" placeholder="https://api.deepseek.com/ or web url" value="">
+                        <input class="builder-input" id="custom-keyword" placeholder="Expected Status (e.g. 200) or Keyword" value="">
+                        <button class="btn-save-probe" id="btn-save-custom-probe">Save to Dynamic Catalog</button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ========================================== -->
+            <!-- VIEW 4: SUBSCRIPTIONS & MOBILE HUB         -->
+            <!-- ========================================== -->
+            <section id="view-subscriptions" class="cockpit-view">
+                <div class="hub-container">
+                    <!-- Left Column: Links and Presets -->
+                    <div class="hub-card">
+                        <div class="card-heading">
+                            <span>🔗 Live Auto-Updating Subscription Feed</span>
+                        </div>
+                        <div class="card-sub">
+                            Clients (v2rayNG, Clash Verge, Streisand, Shadowrocket) automatically pull the latest verified AI Clean nodes.
+                        </div>
+
+                        <div class="sub-url-box">
+                            <span class="sub-url-text" id="sub-feed-url">http://127.0.0.1:19090/api/export?format=sub&filter=clean</span>
+                            <button class="btn-copy-url" id="btn-copy-feed-url">📋 Copy Feed URL</button>
+                        </div>
+
+                        <div class="presets-title">Filtered Export Presets</div>
+
+                        <div class="preset-row" id="preset-export-all">
+                            <div class="preset-name"><span>🌟</span> All AI Clean Nodes (Unrestricted)</div>
+                            <div class="preset-count" id="preset-clean-count">0 Nodes</div>
+                        </div>
+
+                        <div class="preset-row" id="preset-export-speed">
+                            <div class="preset-name"><span>⚡</span> High-Throughput Streamers (> 30 Mbps)</div>
+                            <div class="preset-count" id="preset-speed-count">0 Nodes</div>
+                        </div>
+
+                        <div class="preset-row" id="preset-export-res">
+                            <div class="preset-name"><span>🏠</span> Residential IP Clean (Zero Geoblock)</div>
+                            <div class="preset-count" id="preset-res-count">0 Nodes</div>
+                        </div>
+
+                        <div class="preset-row" id="preset-export-eu">
+                            <div class="preset-name"><span>🇪🇺</span> Europe High-Speed (DE + NL)</div>
+                            <div class="preset-count" id="preset-eu-count">0 Nodes</div>
+                        </div>
+
+                        <div class="presets-title" style="margin-top: 16px;">Export Format Options</div>
+                        <div class="export-format-buttons">
+                            <button class="btn-format" id="btn-export-base64">Base64 Standard</button>
+                            <button class="btn-format" id="btn-export-raw">Raw URIs</button>
+                            <button class="btn-format" id="btn-export-json">JSON Telemetry</button>
+                        </div>
+                    </div>
+
+                    <!-- Right Column: Mobile QR Code & Smart Remark Preview -->
+                    <div class="hub-card qr-center">
+                        <div class="card-heading"><span>📱 Scan with Mobile Client</span></div>
+                        <div class="card-sub">Instantly sync tested clean proxies to your smartphone</div>
+
+                        <div class="qr-box" id="qr-container">
+                            <!-- SVG QR Code rendered here -->
+                            <svg viewBox="0 0 100 100" width="100%" height="100%">
+                                <rect x="0" y="0" width="30" height="30" fill="#000"/>
+                                <rect x="5" y="5" width="20" height="20" fill="#fff"/>
+                                <rect x="10" y="10" width="10" height="10" fill="#000"/>
+                                <rect x="70" y="0" width="30" height="30" fill="#000"/>
+                                <rect x="75" y="5" width="20" height="20" fill="#fff"/>
+                                <rect x="80" y="10" width="10" height="10" fill="#000"/>
+                                <rect x="0" y="70" width="30" height="30" fill="#000"/>
+                                <rect x="5" y="75" width="20" height="20" fill="#fff"/>
+                                <rect x="10" y="80" width="10" height="10" fill="#000"/>
+                                <rect x="40" y="10" width="15" height="15" fill="#000"/>
+                                <rect x="45" y="40" width="20" height="20" fill="#000"/>
+                                <rect x="70" y="50" width="20" height="10" fill="#000"/>
+                                <rect x="10" y="45" width="15" height="15" fill="#000"/>
+                                <rect x="75" y="75" width="15" height="15" fill="#000"/>
+                            </svg>
+                        </div>
+
+                        <div class="mobile-apps">
+                            <span class="app-chip">v2rayNG</span>
+                            <span class="app-chip">Streisand</span>
+                            <span class="app-chip">Shadowrocket</span>
+                            <span class="app-chip">Clash Verge</span>
+                        </div>
+
+                        <div class="remark-preview-box">
+                            <div class="remark-label">Smart Tagged Remark Injection:</div>
+                            <div class="remark-code" id="smart-remark-sample">[DE] [Hetzner] [RES] [44Mbps] [145ms] [ChatGPT+Gemini] - Node</div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <!-- FLOATING BOTTOM COMMAND DOCK -->
+        <div class="floating-dock" id="floating-dock">
+            <button class="dock-btn ghost" id="dock-btn-ingest">
+                <span>📥</span> Ingest Configs
+            </button>
+            <div class="dock-divider"></div>
+            <button class="dock-btn ghost" id="dock-btn-settings" title="Engine Concurrency & Timeouts">
+                <span>⚙️</span> <span id="dock-concurrency-badge">20x</span>
+            </button>
+            <div class="dock-divider"></div>
+            <button class="dock-btn primary" id="dock-btn-start">
+                <span id="start-btn-icon">🚀</span> <span id="start-btn-label">Start Live Audit</span>
+            </button>
+            <div class="dock-divider"></div>
+            <button class="dock-btn ghost" id="dock-btn-copy-clean">
+                <span>📋</span> Copy Clean (<span id="dock-clean-count">0</span>)
+            </button>
+            <button class="dock-btn danger" id="dock-btn-reset" title="Clear all configs">
+                <span>🗑️</span>
+            </button>
+        </div>
+
+        <!-- SETTINGS MODAL (CONCURRENCY & TIMEOUTS) -->
+        <div id="settings-modal" class="modal-backdrop">
+            <div class="modal-card">
+                <div class="modal-header">
+                    <h3>⚙️ Pipeline Concurrency & Engine Settings</h3>
+                    <button class="modal-close" id="btn-close-settings">×</button>
+                </div>
+                <div class="modal-body">
+                    <div class="setting-item">
+                        <div class="setting-label-row">
+                            <label>Worker Concurrency (Parallel Threads)</label>
+                            <span class="setting-val-badge" id="settings-concurrency-val">20 Workers</span>
+                        </div>
+                        <input type="range" id="settings-concurrency-slider" min="5" max="100" step="5" value="20" class="slider">
+                        <span class="setting-hint">Higher concurrency scans large config batches faster in parallel.</span>
+                    </div>
+
+                    <div class="setting-item mt-3">
+                        <div class="setting-label-row">
+                            <label>Stage 1 Ping Timeout (TCP/TLS Handshake)</label>
+                            <span class="setting-val-badge" id="settings-p1-val">3,000 ms</span>
+                        </div>
+                        <input type="range" id="settings-p1-slider" min="1000" max="8000" step="500" value="3000" class="slider">
+                    </div>
+
+                    <div class="setting-item mt-3">
+                        <div class="setting-label-row">
+                            <label>Stage 2 Deep Probe Timeout (AI Services)</label>
+                            <span class="setting-val-badge" id="settings-p2-val">8,000 ms</span>
+                        </div>
+                        <input type="range" id="settings-p2-slider" min="3000" max="15000" step="1000" value="8000" class="slider">
+                    </div>
+
+                    <div class="setting-item mt-3">
+                        <div class="setting-label-row">
+                            <label>Speedtest Payload Size (Cloudflare Anycast)</label>
+                            <span class="setting-val-badge" id="settings-speed-val">3 MB</span>
+                        </div>
+                        <input type="range" id="settings-speed-slider" min="1" max="5" step="1" value="3" class="slider">
+                    </div>
+
+                    <div class="mt-4 flex-row justify-end">
+                        <button id="btn-save-settings" class="btn btn-primary w-full">Apply & Save Settings</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- INGEST MODAL -->
+        <div id="ingest-modal" class="modal-backdrop">
+            <div class="modal-card">
+                <div class="modal-header">
+                    <h3>📥 Ingest Proxy Configurations</h3>
+                    <button class="modal-close" id="btn-close-ingest">×</button>
+                </div>
+                <div class="modal-body">
+                    <!-- Drop Zone -->
                     <div id="drop-zone" class="drop-zone">
                         <div class="drop-icon">📁</div>
-                        <p class="drop-text">Drag & drop <strong>JSON, Markdown, or Notes</strong> file</p>
+                        <p class="drop-text">Drag & drop <strong>JSON, Markdown, or Text</strong> files</p>
                         <span class="drop-sub">or click to browse files</span>
                         <input type="file" id="file-input" class="file-input" accept=".txt,.json,.md,.yaml,.yml">
                     </div>
 
-                    <!-- Subscription URL Input -->
+                    <!-- Remote URL Input -->
                     <div class="input-group mt-3">
                         <label for="sub-url">Or Remote Subscription URL</label>
                         <div class="flex-row">
@@ -51,183 +630,59 @@
                         </div>
                     </div>
 
-                    <!-- Raw Text Paste Modal Trigger -->
-                    <div class="mt-2">
-                        <textarea id="raw-text" placeholder="Or paste raw links here (vless://, vmess://, trojan://, ss://)..." rows="3" class="form-textarea"></textarea>
-                        <button id="btn-parse-text" class="btn btn-secondary full-width mt-1">Parse Text Input</button>
-                    </div>
-                </section>
-
-                <section class="card mt-3">
-                    <h2 class="section-title">2. Pipeline Configuration</h2>
-                    
-                    <div class="setting-row mt-2">
-                        <label style="font-weight:600">Target Services:</label>
-                        <div class="service-chips mt-1" id="service-chips">
-                            <label class="chip active"><input type="checkbox" value="gemini" checked> Gemini</label>
-                            <label class="chip active"><input type="checkbox" value="aistudio" checked> AI Studio</label>
-                            <label class="chip active"><input type="checkbox" value="chatgpt" checked> ChatGPT</label>
-                            <label class="chip"><input type="checkbox" value="claude"> Claude</label>
-                            <button type="button" id="btn-open-custom-modal" class="chip chip-add">+ Add URL</button>
-                        </div>
+                    <!-- Raw Text Paste -->
+                    <div class="input-group mt-3">
+                        <label for="raw-input">Or Paste Raw Links (VLESS, VMess, Trojan, SS, SOCKS5)</label>
+                        <textarea id="raw-input" placeholder="vless://...&#10;vmess://...&#10;trojan://..." class="form-textarea" rows="5"></textarea>
                     </div>
 
-                    <div class="setting-row mt-2">
-                        <label>Concurrency: <span id="concurrency-val">20</span> workers</label>
-                        <input type="range" id="concurrency" min="5" max="100" value="20" class="slider">
-                    </div>
-
-                    <div class="setting-row mt-2">
-                        <label>Stage 1 Timeout: <span id="timeout-p1-val">3000</span> ms</label>
-                        <input type="range" id="timeout-p1" min="1000" max="8000" step="500" value="3000" class="slider">
-                    </div>
-
-                    <div class="setting-row mt-2">
-                        <label>Stage 2 Timeout: <span id="timeout-p2-val">8000</span> ms</label>
-                        <input type="range" id="timeout-p2" min="3000" max="15000" step="1000" value="8000" class="slider">
-                    </div>
-
-                    <div class="setting-row mt-3 flex-row justify-between">
-                        <label for="enable-speedtest" style="cursor:pointer">⚡ Speed Test (AI Passed Only)</label>
-                        <input type="checkbox" id="enable-speedtest" checked style="cursor:pointer; accent-color: var(--primary); width:1.1rem; height:1.1rem;">
-                    </div>
-
-                    <div class="setting-row mt-2" id="speed-size-row">
-                        <label>Speed Payload: <span id="speed-size-val">3 MB</span></label>
-                        <input type="range" id="speed-size" min="1" max="5" step="1" value="3" class="slider">
-                    </div>
-
-                    <div class="mt-4 flex-row gap-2">
-                        <button id="btn-start" class="btn btn-primary flex-1">🚀 Start Pipeline</button>
-                        <button id="btn-cancel" class="btn btn-danger" disabled>⏹️ Cancel</button>
-                    </div>
-                </section>
-
-                <section class="card mt-3">
-                    <h2 class="section-title">3. Export & Actions</h2>
-                    <p class="info-text">Export surviving nodes with enriched ISP, country, and AI verification tags.</p>
-                    <div class="flex-column gap-2 mt-2">
-                        <button id="btn-copy-sub" class="btn btn-success full-width">📋 Copy Clean Subscription</button>
-                        <button id="btn-download-sub" class="btn btn-outline full-width">💾 Download .txt File</button>
-                        <button id="btn-clear-all" class="btn btn-outline-danger full-width mt-1">🗑️ Clear All Configs</button>
-                    </div>
-                </section>
-            </aside>
-
-            <!-- Right Panel: Real-time Matrix Grid -->
-            <main class="results-panel">
-                <div class="panel-header">
-                    <div class="tab-filters">
-                        <button class="tab active" data-filter="all">All (<span id="count-all">0</span>)</button>
-                        <button class="tab" data-filter="clean">🌟 Clean AI-Ready (<span id="count-clean">0</span>)</button>
-                        <button class="tab" data-filter="alive">Reachable (<span id="count-alive">0</span>)</button>
-                        <button class="tab" data-filter="dead">Dead / Failed (<span id="count-dead">0</span>)</button>
-                    </div>
-                    <div class="search-box">
-                        <input type="text" id="filter-search" placeholder="Filter by server, ISP, or country..." class="search-input">
+                    <!-- Ingest Action -->
+                    <div class="mt-4 flex-row justify-end">
+                        <button id="btn-parse-text" class="btn btn-primary w-full">Parse & Load Into Cockpit</button>
                     </div>
                 </div>
-
-                <!-- Live Matrix Table with Vertical Headers -->
-                <div class="table-container">
-                    <table class="matrix-table">
-                        <thead>
-                            <tr id="matrix-header-row">
-                                <th class="col-idx">#</th>
-                                <th class="col-proto">Protocol</th>
-                                <th class="col-server">Server & Port</th>
-                                <th class="col-ping">Ping (P1)</th>
-                                <th class="col-speed">Speed</th>
-                                <!-- Dynamic Service Columns populated via JS -->
-                                <th class="col-service checkpoint-header"><div class="header-content"><span class="badge-dot gemini"></span> Gemini</div></th>
-                                <th class="col-service checkpoint-header"><div class="header-content"><span class="badge-dot aistudio"></span> AI Studio</div></th>
-                                <th class="col-service checkpoint-header"><div class="header-content"><span class="badge-dot chatgpt"></span> ChatGPT</div></th>
-                                <th class="col-service checkpoint-header"><div class="header-content"><span class="badge-dot ipleak"></span> IP Intelligence</div></th>
-                                <th class="col-status">Pipeline State</th>
-                            </tr>
-                        </thead>
-                        <tbody id="matrix-tbody">
-                            <tr class="empty-state">
-                                <td colspan="10" id="empty-state-td">No proxies loaded. Drag and drop a file or paste subscription links on the left to begin.</td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
-            </main>
-        </div>
-    </div>
-
-    <!-- Notification Toast -->
-    <div id="toast" class="toast"></div>
-
-    <!-- Custom Target Probe Modal -->
-    <div id="custom-modal" class="modal-overlay">
-        <div class="modal-content" style="max-width: 440px;">
-            <div class="modal-header">
-                <h3>🌐 Add Custom Target URL</h3>
-                <button id="custom-modal-close" class="modal-close">&times;</button>
             </div>
-            <div class="modal-body" style="padding: 1.25rem;">
-                <div class="setting-row">
-                    <label>Target Name (e.g. Flow, Groq, MyAPI)</label>
-                    <input type="text" id="modal-custom-name" class="search-input full-width mt-1" placeholder="e.g. Flow AI">
+        </div>
+
+        <!-- DIAGNOSTIC INSPECTOR MODAL -->
+        <div id="diag-modal" class="modal-backdrop">
+            <div class="modal-card">
+                <div class="modal-header">
+                    <h3>🔍 Diagnostic Inspector</h3>
+                    <button class="modal-close" id="btn-close-diag">×</button>
                 </div>
-                <div class="setting-row mt-3">
-                    <label>Target URL (HTTPS)</label>
-                    <input type="url" id="modal-custom-url" class="search-input full-width mt-1" placeholder="https://flow.ai/login">
-                </div>
-                <div class="setting-row mt-3">
-                    <label>Expected Status Code</label>
-                    <input type="number" id="modal-custom-status" class="search-input full-width mt-1" value="200">
-                </div>
-                <div class="mt-4 flex-row gap-2">
-                    <button id="btn-save-custom-service" class="btn btn-primary flex-1">Save & Add Target</button>
-                    <button id="btn-cancel-custom-modal" class="btn btn-secondary">Cancel</button>
+                <div class="modal-body">
+                    <div class="diag-meta-grid">
+                        <span class="diag-label">Target Service:</span>
+                        <span id="modal-service" class="diag-value">-</span>
+
+                        <span class="diag-label">HTTP Code:</span>
+                        <span id="modal-http" class="diag-value">-</span>
+
+                        <span class="diag-label">Interception:</span>
+                        <span id="modal-interception" class="diag-value">-</span>
+
+                        <span class="diag-label">Error Layer:</span>
+                        <span id="modal-layer" class="diag-value">-</span>
+
+                        <span class="diag-label">Final URL:</span>
+                        <span id="modal-url" class="diag-value truncate">-</span>
+
+                        <span class="diag-label">Ray ID / Server:</span>
+                        <span id="modal-ray" class="diag-value">-</span>
+
+                        <span class="diag-label">Summary / Notice:</span>
+                        <span id="modal-summary" class="diag-value">-</span>
+
+                        <span class="diag-label">Engine Log / Stderr:</span>
+                        <pre id="modal-engine-log" class="diag-log-box">-</pre>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- Diagnostic Inspection Modal -->
-    <div id="diag-modal" class="modal-overlay">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h3>🔍 Diagnostic Inspection Details</h3>
-                <button id="modal-close" class="modal-close">&times;</button>
-            </div>
-            <div class="modal-body">
-                <div class="diag-grid">
-                    <span class="diag-label">Probe Target:</span>
-                    <span id="modal-probe-name" class="diag-value">-</span>
-
-                    <span class="diag-label">Error Layer:</span>
-                    <span id="modal-error-layer" class="diag-value">-</span>
-
-                    <span class="diag-label">Interception Type:</span>
-                    <span id="modal-interception" class="diag-value">-</span>
-
-                    <span class="diag-label">HTTP Status:</span>
-                    <span id="modal-http-status" class="diag-value">-</span>
-
-                    <span class="diag-label">Server Header:</span>
-                    <span id="modal-server" class="diag-value">-</span>
-
-                    <span class="diag-label">Cloudflare Ray-ID:</span>
-                    <span id="modal-ray-id" class="diag-value">-</span>
-
-                    <span class="diag-label">Landing URL:</span>
-                    <span id="modal-final-url" class="diag-value">-</span>
-
-                    <span class="diag-label">Summary / Notice:</span>
-                    <span id="modal-summary" class="diag-value">-</span>
-
-                    <span class="diag-label">Engine Log / Stderr:</span>
-                    <pre id="modal-engine-log" class="diag-log-box">-</pre>
-                </div>
-            </div>
-        </div>
-    </div>
-
+    <!-- MAIN APP CONTROLLER -->
     <script src="app.js"></script>
 </body>
 </html>

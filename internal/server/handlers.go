@@ -42,7 +42,7 @@ func (sc *ServerContext) UpdateReport(report *domain.ProxyEvaluationReport) {
 	}
 	sc.mu.Lock()
 	defer sc.mu.Unlock()
-	sc.reports[report.Config.ID] = report
+	sc.reports[report.Config.ID] = report.Clone()
 }
 
 // HandleIngest processes file uploads, pasted text, or subscription URLs.
@@ -146,6 +146,13 @@ func (sc *ServerContext) HandleScanStart(w http.ResponseWriter, r *http.Request)
 
 	if req.Stage2TimeoutMs <= 0 {
 		req.Stage2TimeoutMs = 8000
+	}
+
+	if req.Concurrency > 0 {
+		sc.orchestrator.SetConcurrency(req.Concurrency)
+	}
+	if req.Stage1TimeoutMs > 0 || req.Stage2TimeoutMs > 0 {
+		sc.orchestrator.SetTimeouts(req.Stage1TimeoutMs, req.Stage2TimeoutMs)
 	}
 
 	// Build dynamic probe suite based on user selection
